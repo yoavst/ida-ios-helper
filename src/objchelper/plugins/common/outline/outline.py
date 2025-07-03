@@ -9,8 +9,7 @@ from itertools import islice
 import ida_ua
 from ida_funcs import func_t
 from ida_ua import insn_t
-
-from objchelper.idahelper import functions, instructions, memory, xrefs
+from idahelper import functions, instructions, memory, xrefs
 
 MAX_INSN_COUNT = 15
 OUTLINE_COMMON_REGISTERS = ["X19", "X20", "X21", "X22", "X23", "X24", "X25"]

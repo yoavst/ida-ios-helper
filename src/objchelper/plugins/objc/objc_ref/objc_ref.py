@@ -2,8 +2,7 @@ __all__ = ["locate_selector_xrefs"]
 
 import idautils
 import idc
-
-from objchelper.idahelper.widgets import EAChoose
+from idahelper.widgets import EAChoose
 
 # Taken from: https://github.com/doronz88/ida-scripts/blob/main/objc_hotkeys.py
 IGNORED_SECTIONS = ("__objc_const",)

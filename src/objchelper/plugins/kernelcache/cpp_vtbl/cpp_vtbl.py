@@ -1,9 +1,8 @@
 import ida_hexrays
 from ida_hexrays import cexpr_t
 from ida_typeinf import tinfo_t
-
-from objchelper.idahelper import cpp, functions, memory, tif, widgets
-from objchelper.idahelper.widgets import EAChoose
+from idahelper import cpp, functions, memory, tif, widgets
+from idahelper.widgets import EAChoose
 
 
 def get_vtable_call(verbose: bool = False) -> tuple[tinfo_t, str, int] | None:

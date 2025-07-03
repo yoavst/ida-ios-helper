@@ -4,10 +4,9 @@ from enum import Enum
 import ida_hexrays
 from ida_hexrays import mblock_t, mcallinfo_t, minsn_t, mop_t, optblock_t
 from ida_typeinf import tinfo_t
-
-from objchelper.idahelper import tif
-from objchelper.idahelper.microcode import mblock, mcallarg, minsn, mop
-from objchelper.idahelper.microcode.optimizers import optblock_counter_t, optblock_counter_wrapper_t
+from idahelper import tif
+from idahelper.microcode import mblock, mcallarg, minsn, mop
+from idahelper.microcode.optimizers import optblock_counter_t, optblock_counter_wrapper_t
 
 from .os_log import LogCallInfo, LogCallParams, get_call_info_for_name, log_type_to_str
 

@@ -2,9 +2,8 @@ from typing import Literal
 
 import ida_hexrays
 from ida_hexrays import Hexrays_Hooks, cfunc_t, mblock_t, minsn_t, minsn_visitor_t
-
-from objchelper.idahelper import comments
-from objchelper.idahelper.microcode import mba, mop
+from idahelper import comments
+from idahelper.microcode import mba, mop
 
 
 def create_comment(lhs: int, rhs: int, op: Literal["<", "<=", ">", ">="], var: str) -> str:

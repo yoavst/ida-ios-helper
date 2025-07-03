@@ -17,9 +17,8 @@ from ida_lines import (
     tag_remove,
 )
 from ida_pro import strvec_t
-
-from objchelper.idahelper import objc
-from objchelper.idahelper.ast import cexpr
+from idahelper import objc
+from idahelper.ast import cexpr
 
 SELECTOR_MARKER = "!@#$sel$#@!"
 COMMA_COLORED = COLSTR(",", SCOLOR_SYMBOL)

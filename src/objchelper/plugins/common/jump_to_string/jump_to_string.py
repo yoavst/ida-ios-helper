@@ -1,6 +1,5 @@
 import ida_kernwin
-
-from objchelper.idahelper import functions, memory, strings, widgets, xrefs
+from idahelper import functions, memory, strings, widgets, xrefs
 
 
 def find_matching_string(target_str: str) -> list[tuple[int, str]]:

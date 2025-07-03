@@ -3,9 +3,9 @@ __all__ = ["apply_pac_component", "local_func_renamer_component", "mass_func_ren
 import ida_kernwin
 import idaapi
 from ida_kernwin import action_handler_t
+from idahelper import widgets
 
 from objchelper.base.reloadable_plugin import HexraysHookComponent, UIAction, UIActionsComponent
-from objchelper.idahelper import widgets
 
 from .func_renamers import apply_global_rename, hooks
 from .pac_applier import apply_pac

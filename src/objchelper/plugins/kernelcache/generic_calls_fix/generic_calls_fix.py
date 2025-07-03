@@ -5,10 +5,10 @@ import re
 import ida_hexrays
 from ida_hexrays import mblock_t, mcallarg_t, mcallargs_t, mcallinfo_t, minsn_t, minsn_visitor_t
 from ida_typeinf import tinfo_t
+from idahelper import cpp, tif
+from idahelper.microcode import mcallarg, minsn, mop
 
 from objchelper.base.utils import CounterMixin, match_dict
-from objchelper.idahelper import cpp, tif
-from objchelper.idahelper.microcode import mcallarg, minsn, mop
 
 CAST_FUNCTIONS: dict[str | re.Pattern, str] = {
     "OSMetaClassBase::safeMetaCast": "OSDynamicCast",

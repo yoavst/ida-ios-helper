@@ -4,9 +4,9 @@ import re
 
 import ida_hexrays
 from ida_hexrays import mblock_t, minsn_t, minsn_visitor_t, mop_t, mop_visitor_t, optinsn_t
+from idahelper.microcode import mop
 
 from objchelper.base.utils import CounterMixin, match_dict
-from objchelper.idahelper.microcode import mop
 
 # Replace var with val
 VARIABLES_TO_OPTIMIZE_OUT: dict[str | re.Pattern, int] = {

@@ -1,8 +1,7 @@
 __all__ = ["apply_kalloc_types"]
 
 from ida_typeinf import tinfo_t
-
-from objchelper.idahelper import memory, segments, tif
+from idahelper import memory, segments, tif
 
 KALLOC_TYPE_DEFINITIONS = """
 struct zone_view {

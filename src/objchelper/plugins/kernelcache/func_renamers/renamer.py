@@ -5,10 +5,9 @@ from collections.abc import Callable
 import ida_hexrays
 from ida_hexrays import lvars_t, minsn_t, mop_t
 from ida_typeinf import tinfo_t
-
-from objchelper.idahelper import memory, tif, xrefs
-from objchelper.idahelper.ast import lvars
-from objchelper.idahelper.ast.lvars import VariableModification
+from idahelper import memory, tif, xrefs
+from idahelper.ast import lvars
+from idahelper.ast.lvars import VariableModification
 
 from .visitor import Call, FuncXref, IndirectCallXref, ParsedParam, SourceXref
 

@@ -8,6 +8,7 @@ repository = "https://github.com/yoavst/ida-objc-helper"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
+idahelper = "^1.0.1"
 
 [tool.poetry.group.dev.dependencies]
 vermin = "^1.6.0"

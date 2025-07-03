@@ -2,9 +2,9 @@ __all__ = ["plugin_core"]
 
 import ida_kernwin
 import idaapi
+from idahelper import file_format, widgets
 
 from .base.reloadable_plugin import ComponentFactory, PluginCore, UIAction, UIActionsComponent
-from .idahelper import file_format, widgets
 from .plugins.common.clang_blocks import clang_block_args_analyzer_component, clang_block_optimizer_component
 from .plugins.common.jump_to_string import jump_to_string_component
 from .plugins.common.outline import mark_outline_functions_component

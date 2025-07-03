@@ -4,10 +4,9 @@ from dataclasses import dataclass
 import ida_hexrays
 from ida_hexrays import lvar_t, mba_t, mcallarg_t, minsn_t, mop_t
 from ida_typeinf import tinfo_t
-
-from objchelper.idahelper import memory, tif
-from objchelper.idahelper.microcode import mop
-from objchelper.idahelper.microcode.visitors import extended_microcode_visitor_t
+from idahelper import memory, tif
+from idahelper.microcode import mop
+from idahelper.microcode.visitors import extended_microcode_visitor_t
 
 from ..generic_calls_fix import CAST_FUNCTION_NAMES
 

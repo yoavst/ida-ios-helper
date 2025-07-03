@@ -1,8 +1,7 @@
 from ida_funcs import func_t
-
-from objchelper.idahelper import pac, tif
-from objchelper.idahelper.ast import cfunc
-from objchelper.idahelper.ast.lvars import VariableModification
+from idahelper import pac, tif
+from idahelper.ast import cfunc
+from idahelper.ast.lvars import VariableModification
 
 from .renamer import (
     Modifications,

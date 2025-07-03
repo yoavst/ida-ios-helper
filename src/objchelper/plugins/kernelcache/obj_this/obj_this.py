@@ -1,8 +1,7 @@
 __all__ = ["update_argument"]
 
 from ida_funcs import func_t
-
-from objchelper.idahelper import cpp, memory, objc, tif
+from idahelper import cpp, memory, objc, tif
 
 
 def update_argument(func: func_t) -> bool:

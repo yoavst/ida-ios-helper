@@ -33,7 +33,8 @@ A plugin for IDA Pro 9.0+ to help with iOS code analysis.
 2. symlink `src` folder into your IDA Pro plugins folder:
     - on unix: `~/.idapro/plugins/`
     - on windows: `%APPDATA%\Hex-Rays\IDA Pro\plugins`. `mklink /d` command can be used to create a symlink.
-3. Restart IDA.
+3. Install `idahelper` to the python environment used by IDA.
+4. Restart IDA.
 
 ## Examples
 

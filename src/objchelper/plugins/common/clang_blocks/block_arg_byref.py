@@ -12,9 +12,8 @@ from enum import Enum
 import ida_hexrays
 from ida_hexrays import cexpr_t, cfunc_t, cinsn_t, lvar_t
 from ida_typeinf import tinfo_t
-
-from objchelper.idahelper import tif
-from objchelper.idahelper.ast import cexpr
+from idahelper import tif
+from idahelper.ast import cexpr
 
 from .utils import StructFieldAssignment
 

@@ -17,8 +17,7 @@ from ida_hexrays import (
     lvar_t,
 )
 from ida_typeinf import tinfo_t, udm_t
-
-from objchelper.idahelper.ast import cexpr
+from idahelper.ast import cexpr
 
 from .utils import StructFieldAssignment
 

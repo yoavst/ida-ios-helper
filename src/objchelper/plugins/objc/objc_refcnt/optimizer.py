@@ -11,9 +11,9 @@ from ida_hexrays import (
     mop_t,
     mop_visitor_t,
 )
+from idahelper.microcode import minsn, mreg
 
 from objchelper.base.utils import CounterMixin, match
-from objchelper.idahelper.microcode import minsn, mreg
 
 # Replace f(x) with x
 ID_FUNCTIONS_TO_REPLACE_WITH_ARG: list[str | re.Pattern] = [

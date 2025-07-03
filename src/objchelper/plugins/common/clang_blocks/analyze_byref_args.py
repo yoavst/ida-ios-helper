@@ -12,11 +12,10 @@ from ida_hexrays import (
     mop_t,
 )
 from ida_typeinf import tinfo_t
-
-from objchelper.idahelper import tif, widgets
-from objchelper.idahelper.ast import cexpr, cfunc, lvars
-from objchelper.idahelper.ast.lvars import VariableModification
-from objchelper.idahelper.microcode import mba, mblock, mop
+from idahelper import tif, widgets
+from idahelper.ast import cexpr, cfunc, lvars
+from idahelper.ast.lvars import VariableModification
+from idahelper.microcode import mba, mblock, mop
 
 from .block import (
     FLAG_BLOCK_HAS_COPY_DISPOSE,

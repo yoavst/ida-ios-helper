@@ -3,9 +3,8 @@ from functools import cache
 
 import ida_hexrays
 from ida_hexrays import Hexrays_Hooks, cfunc_t
-
-from objchelper.idahelper import xrefs
-from objchelper.idahelper.microcode import mba
+from idahelper import xrefs
+from idahelper.microcode import mba
 
 from .handlers import GLOBAL_HANDLERS, LOCAL_HANDLERS
 from .renamer import (

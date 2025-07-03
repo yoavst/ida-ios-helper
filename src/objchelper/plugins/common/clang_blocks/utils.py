@@ -6,8 +6,7 @@ import ida_hexrays
 import idaapi
 from ida_hexrays import cexpr_t, cfuncptr_t, cinsn_t, lvar_t
 from ida_typeinf import tinfo_t, udm_t
-
-from objchelper.idahelper import tif
+from idahelper import tif
 
 
 @dataclass

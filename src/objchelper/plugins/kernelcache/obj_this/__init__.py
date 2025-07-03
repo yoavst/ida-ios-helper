@@ -3,9 +3,9 @@ __all__ = ["this_arg_fixer_component"]
 import ida_kernwin
 import idaapi
 from ida_kernwin import action_handler_t
+from idahelper import widgets
 
 from objchelper.base.reloadable_plugin import UIAction, UIActionsComponent
-from objchelper.idahelper import widgets
 
 from .obj_this import update_argument
 

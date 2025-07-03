@@ -1,7 +1,7 @@
 __all__ = ["GLOBAL_HANDLERS", "LOCAL_HANDLERS"]
 
 
-from objchelper.idahelper import file_format, functions, instructions, memory, tif, xrefs
+from idahelper import file_format, functions, instructions, memory, tif, xrefs
 
 from .renamer import (
     FuncHandler,

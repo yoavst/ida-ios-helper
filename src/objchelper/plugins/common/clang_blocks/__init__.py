@@ -2,10 +2,10 @@ __all__ = ["clang_block_args_analyzer_component", "clang_block_optimizer_compone
 
 import ida_kernwin
 import idaapi
+from idahelper import widgets
+from idahelper.ast import cfunc
 
 from objchelper.base.reloadable_plugin import HexraysHookComponent, UIAction, UIActionsComponent
-from objchelper.idahelper import widgets
-from objchelper.idahelper.ast import cfunc
 
 from .analyze_byref_args import try_add_block_arg_byref_to_func
 from .optimize_blocks_init import objc_blocks_optimizer_hooks_t

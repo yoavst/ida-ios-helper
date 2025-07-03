@@ -1,8 +1,7 @@
 import ida_hexrays
 from ida_hexrays import Hexrays_Hooks, cexpr_t, cfunc_t, cinsn_t
-
-from objchelper.idahelper import memory
-from objchelper.idahelper.ast import cexpr, cinsn
+from idahelper import memory
+from idahelper.ast import cexpr, cinsn
 
 from .block import BlockBaseFieldsAssignments, get_block_type, get_ida_block_lvars
 from .block_arg_byref import BlockByRefArgBaseFieldsAssignments, get_block_byref_args_lvars
