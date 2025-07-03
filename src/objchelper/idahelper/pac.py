@@ -9,7 +9,7 @@ import idaapi
 import idautils
 from ida_typeinf import tinfo_t
 
-from objchelper.idahelper import cpp, memory
+from objchelper.idahelper import cpp, instructions, memory
 
 try:
     from netnode import Netnode
@@ -52,7 +52,7 @@ def is_pac_plugin_installed() -> bool:
 
 def ensure_pac_plugin_installed():
     if not is_pac_plugin_installed():
-        raise AssertionError(  # noqa: TRY003
+        raise AssertionError(
             "PacExplorer plugin is not installed, please install from https://github.com/yoavst/PacXplorer/tree/patch-1"
         )
 
@@ -71,6 +71,17 @@ def pac_xrefs_to_func(func_ea: int) -> list[int]:
     if result is None:
         return []
     return [item[0] for item in result]
+
+
+def pac_calls_xrefs_to_func(func_ea: int) -> list[int]:
+    """Given the EA of a function, return possible xrefs to the actual callsites using PAC matching"""
+    movks = pac_xrefs_to_func(func_ea)
+    calls = []
+    for movk in movks:
+        call = get_next_blr(movk)
+        if call is not None:
+            calls.append(call)
+    return calls
 
 
 def pac_candidates_from_movk(movk_ea: int) -> list[int]:
@@ -104,6 +115,7 @@ def pac_class_candidates_from_movk(movk_ea: int) -> list[tinfo_t]:
 
 
 MAX_PREVIOUS_OPCODES_FOR_MOVK_SCAN = 10
+MAX_NEXT_OPCODES_FOR_BLR_SCAN = MAX_PREVIOUS_OPCODES_FOR_MOVK_SCAN
 
 
 def get_previous_movk(call_ea: int) -> int | None:
@@ -127,6 +139,30 @@ def get_previous_movk(call_ea: int) -> int | None:
         if insn is None:
             break
         if insn.get_canon_mnem() == "MOVK" and insn[0].reg == movk_reg:
+            return insn.ea
+    return None
+
+
+def get_next_blr(mvok_ea: int) -> int | None:
+    """Given a movk, search next instructions to find a call"""
+    insn = idautils.DecodeInstruction(mvok_ea)
+    if not insn:
+        return None
+
+    if insn.get_canon_mnem() != "MOVK":
+        return None
+
+    movk_reg = insn[0].reg
+    func = idaapi.get_func(insn.ea)
+    if func is None:
+        return None
+
+    for _ in range(MAX_NEXT_OPCODES_FOR_BLR_SCAN):
+        insn = instructions.decode_next_instruction(insn, func)
+        # No more instructions in this execution flow
+        if insn is None:
+            break
+        if insn.get_canon_mnem() == "BLR" and insn[1].reg == movk_reg:
             return insn.ea
     return None
 

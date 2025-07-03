@@ -33,9 +33,8 @@ def demangle_class_only(symbol: str, strict: bool = False) -> str | None:
 
 
 def vtable_location_from_type(cpp_type: tinfo_t) -> int | None:
-    """Find the location of the "`vtable'TYPE" for the given `cpp_type`"""
-    # noinspection PyTypeChecker
-    type_name: str = cpp_type.get_type_name()
+    """Find the location of the "\\`vtable'TYPE" for the given `cpp_type`"""
+    type_name: str = cpp_type.get_type_name()  # pyright: ignore[reportAssignmentType]
     return memory.ea_from_name(f"__ZTV{len(type_name)}{type_name}")
 
 
@@ -45,3 +44,15 @@ def type_from_vtable_name(symbol: str) -> tinfo_t | None:
     if vtable_demangled_name and vtable_demangled_name.startswith("`vtable for'"):
         cls_name = vtable_demangled_name[12:]
         return tif.from_struct_name(cls_name)
+    else:
+        return None
+
+
+def get_all_cpp_classes() -> list[tuple[tinfo_t, int]]:
+    """Return map between cpp type to its vtable ea"""
+    d: list[tuple[tinfo_t, int]] = []
+    for ea, name in memory.names():
+        cls = type_from_vtable_name(name)
+        if cls is not None and not cls.dstr().endswith("::MetaClass"):
+            d.append((cls, ea))
+    return d

@@ -20,11 +20,14 @@ def get_vtable_call(verbose: bool = False) -> tuple[tinfo_t, str, int] | None:
             )
         return None
 
-    expr: cexpr_t = citem.cexpr
+    return get_vtable_call_from_expr(citem.cexpr, verbose)
+
+
+def get_vtable_call_from_expr(expr: cexpr_t, verbose: bool = False) -> tuple[tinfo_t, str, int] | None:
     if expr.op not in [ida_hexrays.cot_memptr, ida_hexrays.cot_memref]:
         if verbose:
             print(
-                f"[Error] Current citem is not a member pointer: {citem.dstr()} but a {ida_hexrays.get_ctype_name(citem.cexpr.op)}. Do you have your cursor on the virtual call?"
+                f"[Error] Current citem is not a member pointer: {expr.dstr()} but a {ida_hexrays.get_ctype_name(expr.op)}. Do you have your cursor on the virtual call?"
             )
         return None
 
@@ -32,7 +35,7 @@ def get_vtable_call(verbose: bool = False) -> tuple[tinfo_t, str, int] | None:
     if not tp.is_funcptr() and not tp.is_func():
         if verbose:
             print(
-                f"[Error] Current member is not a function pointer: {citem.dstr()}. Do you have your cursor on a virtual call?"
+                f"[Error] Current member is not a function pointer: {expr.dstr()}. Do you have your cursor on a virtual call?"
             )
         return None
     offset = expr.m
@@ -50,6 +53,10 @@ def show_vtable_xrefs():
 
     vtable_type, call_name, offset = vtable_call
     actual_type = get_actual_class_from_vtable(vtable_type)
+    if actual_type is None:
+        print(f"[Error] failed to find actual type for {vtable_type.get_type_name()}")
+        return
+
     matches = get_vtable_xrefs(vtable_type, offset)
 
     method_name = f"{actual_type.get_type_name()}->{call_name}"
@@ -76,12 +83,16 @@ def show_vtable_xrefs():
 def get_vtable_xrefs(vtable_type: tinfo_t, offset: int) -> dict[int, str]:
     """Given a vtable type and offset, return the address of the function at that offset."""
     actual_type = get_actual_class_from_vtable(vtable_type)
-    children_classes = tif.get_children_classes(actual_type)
+    if actual_type is None:
+        return {}
+
+    children_classes = tif.get_children_classes(actual_type) or []
     pure_virtual_ea = (
         memory.ea_from_name("___cxa_pure_virtual")
         or memory.ea_from_name("__cxa_pure_virtual")
         or memory.ea_from_name("_cxa_pure_virtual")
     )
+    assert pure_virtual_ea is not None
     matches: dict[int, str] = {}  # addr -> class_name
 
     # Get the base implementation, either from this class or its parent if it is inherited
@@ -97,8 +108,7 @@ def get_vtable_xrefs(vtable_type: tinfo_t, offset: int) -> dict[int, str]:
         # Add it to the dict if not already present.
         # get_children_classes returns the classes in order of inheritance
         if vtable_func_ea not in matches:
-            # noinspection PyTypeChecker
-            matches[vtable_func_ea] = cls.get_type_name()
+            matches[vtable_func_ea] = cls.get_type_name()  # pyright: ignore[reportArgumentType]
     return matches
 
 

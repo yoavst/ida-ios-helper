@@ -132,7 +132,7 @@ class extended_microcode_visitor_t:
     def _parent(self) -> minsn_t | mop_t:
         """Return the parent of the current operand"""
         if not self.parents:
-            raise ValueError("No parent available")  # noqa: TRY003
+            raise ValueError("No parent available")
         return self.parents[-1]
 
     def visit_instruction(self, blk: mblock_t, insn: minsn_t) -> int:
@@ -166,5 +166,5 @@ T = TypeVar("T")
 
 def assert_not_none(t: T | None) -> T:
     if t is None:
-        raise ValueError("Accidentally passed none")  # noqa: TRY003
+        raise ValueError("Accidentally passed none")
     return t

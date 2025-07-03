@@ -109,7 +109,7 @@ def get_by_name(lvars: lvars_t, name: str) -> lvar_t:
         if lvar.name == name:
             return lvar
 
-    raise ValueError(f"Local variable {name} not found in {lvars}")  # noqa: TRY003
+    raise ValueError(f"Local variable {name} not found in {lvars}")
 
 
 def get_index_by_name(lvars: lvars_t, name: str) -> int:
@@ -126,3 +126,60 @@ def get_index(lvars: lvars_t, lvar: lvar_t) -> int:
         if lvar == lvar2:
             return i
     return -1
+
+
+def get_flags(lvar: lvar_t) -> int:  # noqa: C901
+    """Given lvar, return the int value of the CVAR_ flags"""
+    flags = 0
+
+    if lvar.used:
+        flags |= 0x00000001  # CVAR_USED
+    if lvar.typed:
+        flags |= 0x00000002  # CVAR_TYPE
+    if lvar.has_nice_name:
+        flags |= 0x00000004  # CVAR_NAME
+    if lvar.mreg_done:
+        flags |= 0x00000008  # CVAR_MREG
+    if lvar.is_unknown_width:
+        flags |= 0x00000010  # CVAR_NOWD
+    if lvar.has_user_name:
+        flags |= 0x00000020  # CVAR_UNAME
+    if lvar.has_user_type:
+        flags |= 0x00000040  # CVAR_UTYPE
+    if lvar.is_result_var:
+        flags |= 0x00000080  # CVAR_RESULT
+    if lvar.is_arg_var:
+        flags |= 0x00000100  # CVAR_ARG
+    if lvar.is_fake_var:
+        flags |= 0x00000200  # CVAR_FAKE
+    if lvar.is_overlapped_var:
+        flags |= 0x00000400  # CVAR_OVER
+    if lvar.is_floating_var:
+        flags |= 0x00000800  # CVAR_FLOAT
+    if lvar.is_spoiled_var:
+        flags |= 0x00001000  # CVAR_SPOILED
+    if lvar.is_mapdst_var:
+        flags |= 0x00002000  # CVAR_MAPDST
+    if lvar.is_thisarg():
+        flags |= 0x00008000  # CVAR_THISARG
+    if lvar.is_split_var():
+        flags |= 0x00010000  # CVAR_SPLIT
+    if lvar.has_regname():
+        flags |= 0x00020000  # CVAR_REGNAME
+    if lvar.is_noptr_var():
+        flags |= 0x00040000  # CVAR_NOPTR
+    if lvar.is_dummy_arg():
+        flags |= 0x00080000  # CVAR_DUMMY
+    if lvar.is_notarg():
+        flags |= 0x00100000  # CVAR_NOTARG
+    if lvar.is_automapped():
+        flags |= 0x00200000  # CVAR_AUTOMAP
+    if lvar.is_used_byref():
+        flags |= 0x00400000  # CVAR_BYREF
+    if lvar.in_asm():
+        flags |= 0x00800000  # CVAR_INASM
+    if lvar.is_decl_unused():
+        flags |= 0x01000000  # CVAR_UNUSED
+    if lvar.is_shared():
+        flags |= 0x02000000  # CVAR_SHARED
+    return flags

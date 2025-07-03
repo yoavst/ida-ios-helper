@@ -53,7 +53,7 @@ class BlockArgByRefField(Enum):
 
     def get_offset(self, has_helpers: bool | None = None) -> int:
         if self == BlockArgByRefField.VARIABLE and has_helpers is None:
-            raise ValueError("has_helpers must be specified for VARIABLE")  # noqa: TRY003
+            raise ValueError("has_helpers must be specified for VARIABLE")
 
         if self == BlockArgByRefField.VARIABLE:
             return OFFSET_BYREF_DISPOSE + PTR_SIZE if has_helpers else OFFSET_BYREF_KEEP

@@ -65,6 +65,8 @@ ignore = [
     "S101",
     # Name for classes
     "N801",
+    # Custom error classes
+    "TRY003"
 ]
 
 [tool.ruff.format]

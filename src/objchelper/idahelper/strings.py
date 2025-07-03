@@ -20,7 +20,7 @@ def find_str(content: str) -> Strings.StringItem:
     try:
         return next(s for s in strings() if str(s) == content)
     except StopIteration:
-        raise ValueError(f"Could not find string {content}")  # noqa: B904, TRY003
+        raise ValueError(f"Could not find string {content}")  # noqa: B904
 
 
 def find_strs(content: str) -> list[Strings.StringItem]:

@@ -1,7 +1,9 @@
 import re
+from collections.abc import Iterator
 
 import ida_bytes
 import idaapi
+import idautils
 import idc
 
 RETRY_COUNT = 20
@@ -61,3 +63,8 @@ def is_user_defined_name(ea: int) -> bool:
         return False
 
     return ida_bytes.has_user_name(ea_flags)
+
+
+def names() -> Iterator[tuple[int, str]]:
+    """Return all the names in the binary"""
+    return idautils.Names()

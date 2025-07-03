@@ -137,7 +137,20 @@ def get_member(tif: tinfo_t, offset: int) -> udm_t | None:
 
 
 def get_parent_classes(tif: tinfo_t, including_current_type: bool = False) -> list[tinfo_t] | None:
-    """Get parent classes of a struct."""
+    """Get parent classes of a struct. For example: IOService -> [IORegistryEntry, OSObject]"""
+    classes: list[tinfo_t] = []
+    if including_current_type:
+        classes.append(tif)
+
+    while (parent := get_parent_class(tif)) is not None:
+        classes.append(parent)
+        tif = parent
+
+    return classes
+
+
+def get_parent_class(tif: tinfo_t) -> tinfo_t | None:
+    """Get parent class of a struct"""
     if not tif.is_struct():
         return None
 
@@ -148,19 +161,11 @@ def get_parent_classes(tif: tinfo_t, including_current_type: bool = False) -> li
     if not udt_data.is_cppobj():
         return None
 
-    classes = []
-
-    if including_current_type:
-        classes.append(tif)
-
     for udm in udt_data:
         if udm.is_baseclass():
             # Copy the type as it somehow got freed...
             parent_type: tinfo_t = tinfo_t(udm.type)
-            classes.append(parent_type)
-            classes.extend(get_parent_classes(parent_type) or [])
-
-    return classes
+            return parent_type
 
 
 def get_base_offset_for_class(tif: tinfo_t) -> int | None:
