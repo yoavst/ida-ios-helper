@@ -162,13 +162,20 @@ class PluginCore:
 
 
 class ReloadablePlugin(abc.ABC, plugin_t):
-    def __init__(self, global_name: str, base_package_name: str, plugin_core_factory: PluginCoreFactory):
+    def __init__(
+        self,
+        global_name: str,
+        base_package_name: str,
+        plugin_core_factory: PluginCoreFactory,
+        extra_packages_to_reload: list[str] | None = None,
+    ):
         super().__init__()
         self._global_name = global_name
         self._plugin_core_factory = plugin_core_factory
         self._base_package_name = base_package_name
         self.core: PluginCore | None = None
         self._reload_plugin_action_id = f"{self._global_name}:reload_plugin"
+        self.extra_packages_to_reload = extra_packages_to_reload or []
 
     def init(self) -> int:
         self.core = self._plugin_core_factory(defer_load=True, should_mount=True)
@@ -201,15 +208,19 @@ class ReloadablePlugin(abc.ABC, plugin_t):
             self.core.unload()
 
         # Reload all modules in the base package
-        modules_to_reload = [
-            module_name for module_name in sys.modules if module_name.startswith(self._base_package_name)
-        ]
+        modules_to_reload = [module_name for module_name in sys.modules if self.should_reload_pkg(module_name)]
         for module_name in modules_to_reload:
             with contextlib.suppress(ModuleNotFoundError):
                 idaapi.require(module_name)
 
         # Load the plugin core
         self.core = self._plugin_core_factory(defer_load=False, should_mount=was_mounted)
+
+    def should_reload_pkg(self, module_name: str) -> bool:
+        """Should we reload this module on reloading the plugin"""
+        if module_name.startswith(self._base_package_name):
+            return True
+        return any(module_name.startswith(prefix) for prefix in self.extra_packages_to_reload)
 
 
 class PluginReloadActionHandler(ida_kernwin.action_handler_t):

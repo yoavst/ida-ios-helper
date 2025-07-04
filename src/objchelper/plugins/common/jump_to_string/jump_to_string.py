@@ -1,4 +1,3 @@
-import ida_kernwin
 from idahelper import functions, memory, strings, widgets, xrefs
 
 
@@ -35,7 +34,7 @@ def print_xref(ea: int, match: str | None = None):
 
 
 def jump_to_string_ask():
-    target_str = ida_kernwin.ask_str("", 0, "Enter substring to search in binary strings")
+    target_str = widgets.show_string_input("Enter substring to search in binary strings")
     if not target_str:
         return
 

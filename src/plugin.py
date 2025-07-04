@@ -15,7 +15,7 @@ class ObjcHelperPlugin(ReloadablePlugin):
     def __init__(self):
         # Use lambda to plugin_core, so it could be fully reloaded from disk every time.
         # noinspection PyTypeChecker
-        super().__init__("ioshelper", "objchelper", plugin_core_wrapper_factory)
+        super().__init__("ioshelper", "objchelper", plugin_core_wrapper_factory, extra_packages_to_reload=["idahelper"])
 
 
 def plugin_core_wrapper_factory(*args, **kwargs) -> PluginCore:
