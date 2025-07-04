@@ -8,12 +8,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-      - name: Install Vermin
-        run: python -m pip install vermin
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
       - name: Check for python version violation
         run: vermin --config-file vermin.ini --quiet --violations src/
 
@@ -22,6 +18,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
       - name: Ruff check
         uses: astral-sh/ruff-action@v3
         with:
