@@ -34,29 +34,50 @@ struct kalloc_type_view {
     void                   *unused1;
     void                   *unused2;
 };
+
+struct kalloc_type_var_view {
+	uint16_t                kt_version;
+	uint16_t                kt_size_hdr;
+	uint32_t                kt_size_type;
+	void                   *kt_stats;
+	const char             *kt_name;
+	void                   *kt_next;
+	uint16_t                kt_heap_start;
+	uint8_t                 kt_zones[22];
+	const char             *kt_sig_hdr;
+	const char             *kt_sig_type;
+	kalloc_type_flags_t     kt_flags;
+}
 """
 KALLOC_TYPE_VIEW_OFFSET_NAME = 16  # void *zv_zone + void *zv_stats
 KALLOC_TYPE_VIEW_OFFSET_SIGNATURE = 32  # zone_view
+
+KALLOC_TYPE_VAR_VIEW_OFFSET_NAME = (
+    16  # uint16_t kt_version + uint16_t kt_size_hdr + uint32_t kt_size_type + void* kt_stats
+)
 
 VOID_PTR_TYPE: tinfo_t = tif.from_c_type("void*")  # type: ignore   # noqa: PGH003
 
 
 def apply_kalloc_types():
     kalloc_type_view_tif = tif.from_struct_name("kalloc_type_view")
-    if kalloc_type_view_tif is None:
+    kalloc_type_var_view_tif = tif.from_struct_name("kalloc_type_var_view")
+    if kalloc_type_view_tif is None or kalloc_type_var_view_tif is None:
         if not tif.create_from_c_decl(KALLOC_TYPE_DEFINITIONS):
             print("[Error] failed to created kalloc_type_view type")
 
         kalloc_type_view_tif = tif.from_struct_name("kalloc_type_view")
-        if kalloc_type_view_tif is None:
+        kalloc_type_var_view_tif = tif.from_struct_name("kalloc_type_var_view")
+        if kalloc_type_view_tif is None or kalloc_type_var_view_tif is None:
             print("[Error] could not find kalloc type view")
             return
 
     classes_handled: set[str] = set()
     for segment in segments.get_segments():
-        if not segment.name.endswith("__kalloc_type"):
-            continue
-        set_kalloc_type_for_segment(segment, kalloc_type_view_tif, classes_handled)
+        if segment.name.endswith("__kalloc_type"):
+            set_kalloc_type_for_segment(segment, kalloc_type_view_tif, classes_handled)
+        if segment.name.endswith("__kalloc_var"):
+            set_kalloc_var_for_segment(segment, kalloc_type_var_view_tif)
 
 
 def set_kalloc_type_for_segment(segment: segments.Segment, kalloc_type_view_tif: tinfo_t, classes_handled: set[str]):
@@ -89,7 +110,7 @@ def set_kalloc_type_for_segment(segment: segments.Segment, kalloc_type_view_tif:
             # Clang generates them using macro, so it might lead to some eccentric specific ones...
             continue
 
-        new_name = f"{class_name}_kty"
+        new_name = f"{escape_name(class_name)}_kty"
         if not memory.set_name(kty_ea, new_name, retry=True, retry_count=50):
             print(f"[Error] failed to rename kalloc_type_view on {kty_ea:X} to {new_name!r}")
             continue
@@ -135,3 +156,43 @@ def try_enrich_type(class_name: str, signature: str, classes_handled: set[str]):
         # So if you changed the type to non pointer, you were mistaken...
         if not member.type.is_ptr() and not tif.set_udm_type(class_tif, member, VOID_PTR_TYPE):
             print(f"[Error] failed to set type for {class_name} member at offset {member.offset}")
+
+
+def set_kalloc_var_for_segment(segment: segments.Segment, kalloc_type_var_view_tif: tinfo_t):
+    kalloc_type_view_size = kalloc_type_var_view_tif.get_size()
+
+    if segment.size % kalloc_type_view_size != 0:
+        print(
+            f"[Warning] {segment.name} at {segment.start_ea:X} is not a multiple of kalloc_type_view size. is: {segment.size}, not multiple of: {kalloc_type_view_size}"
+        )
+        return
+
+    for kty_ea in range(segment.start_ea, segment.end_ea, kalloc_type_view_size):
+        if not tif.apply_tinfo_to_ea(kalloc_type_var_view_tif, kty_ea):
+            print(f"[Error] failed to apply kalloc_type_view on {kty_ea:X}")
+
+        site_name_ea = memory.qword_from_ea(kty_ea + KALLOC_TYPE_VAR_VIEW_OFFSET_NAME)
+        site_name = memory.str_from_ea(site_name_ea)
+        if site_name is None:
+            print(f"[Error] failed to read name for kalloc_type_view on {kty_ea:X}")
+            continue
+
+        if not site_name.startswith("site."):
+            print(f"[Error] invalid site name on {kty_ea:X}, is: {site_name!r}")
+            continue
+
+        class_name = site_name[5:]
+        if class_name.startswith("struct "):
+            class_name = class_name[7:]
+        if class_name.startswith("typeof(") or class_name == "T":
+            # Clang generates them using macro, so it might lead to some eccentric specific ones...
+            continue
+
+        new_name = f"{escape_name(class_name)}_kty"
+        if not memory.set_name(kty_ea, new_name, retry=True, retry_count=50):
+            print(f"[Error] failed to rename kalloc_type_view on {kty_ea:X} to {new_name!r}")
+            continue
+
+
+def escape_name(site_name: str) -> str:
+    return site_name.replace("*", "_ptr_").replace(" ", "_").replace("<", "_").replace(">", "_")
