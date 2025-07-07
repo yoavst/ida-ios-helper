@@ -64,7 +64,7 @@ def set_kalloc_type_for_segment(segment: segments.Segment, kalloc_type_view_tif:
 
     if segment.size % kalloc_type_view_size != 0:
         print(
-            f"[Warning] {segment.name} at {segment.start_ea:X} is not a multiplie of kalloc_type_view size. is: {segment.size}, not multiplie of: {kalloc_type_view_size}"
+            f"[Warning] {segment.name} at {segment.start_ea:X} is not a multiple of kalloc_type_view size. is: {segment.size}, not multiple of: {kalloc_type_view_size}"
         )
         return
 
@@ -86,7 +86,7 @@ def set_kalloc_type_for_segment(segment: segments.Segment, kalloc_type_view_tif:
         if class_name.startswith("struct "):
             class_name = class_name[7:]
         if class_name.startswith("typeof(") or class_name == "T":
-            # Clang generates them using macro, so it might lead to some weird specific ones...
+            # Clang generates them using macro, so it might lead to some eccentric specific ones...
             continue
 
         new_name = f"{class_name}_kty"

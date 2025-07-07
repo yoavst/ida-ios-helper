@@ -311,7 +311,7 @@ class FuncHandlerByNameWithStringFinder(FuncHandler, ABC):
         return FuncXref(searched)
 
 
-class FuncHandlerVirtualGetter(FuncHandler, ABC):
+class FuncHandlerVirtualGetter(FuncHandler):
     def __init__(
         self, name: str, obj_type: tinfo_t | None, offset: int, name_index: int, rename_prefix: str | None = None
     ):
