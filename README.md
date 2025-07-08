@@ -26,6 +26,8 @@ A plugin for IDA Pro 9.0+ to help with iOS code analysis.
     - Use `Ctrl+S` to jump to function by a string constant found in the code
     - Helpful comments near ranged conditions
     - Try to detect outline functions and mark them as such.
+    - Use `Ctrl+Shift+X` to find xrefs to a field inside a segment. This will decompile the whole segment and then
+      search for the field.
 
 ## Installation
 
@@ -229,9 +231,11 @@ After:
 ```
 
 ## Automatic typing for `OSObject_typed_operator_new`
+
 Run `Edit->Plugins->iOSHelper->Locate all kalloc_type_view` before.
 
 Before:
+
 ```c++
 IOAccessoryPowerSourceItemUSB_TypeC_Current *sub_FFFFFFF009B2AA14()
 {
@@ -245,6 +249,7 @@ IOAccessoryPowerSourceItemUSB_TypeC_Current *sub_FFFFFFF009B2AA14()
 ```
 
 After:
+
 ```c++
 IOAccessoryPowerSourceItemUSB_TypeC_Current *sub_FFFFFFF009B2AA14()
 {

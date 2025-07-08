@@ -9,6 +9,7 @@ from .plugins.common.clang_blocks import clang_block_args_analyzer_component, cl
 from .plugins.common.jump_to_string import jump_to_string_component
 from .plugins.common.outline import mark_outline_functions_component
 from .plugins.common.range_condition import range_condition_optimizer_component
+from .plugins.common.segment_xrefs import show_segment_xrefs_component
 from .plugins.kernelcache.cpp_vtbl import jump_to_vtable_component
 from .plugins.kernelcache.func_renamers import (
     apply_pac_component,
@@ -79,6 +80,7 @@ def shared_modules() -> list[ComponentFactory]:
         objc_refcount_component,
         range_condition_optimizer_component,
         mark_outline_functions_component,
+        show_segment_xrefs_component,
     ]
 
 
