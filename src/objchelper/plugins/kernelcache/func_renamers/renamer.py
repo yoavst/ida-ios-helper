@@ -100,7 +100,10 @@ class Modifications:
             return new
 
         return VariableModification(
-            new.name or original.name, new.type or original.type, new.comment or original.comment
+            new.name or original.name,
+            new.type or original.type,
+            new.comment or original.comment,
+            new.force_name_change or original.force_name_change,
         )
 
     def __enter__(self):
