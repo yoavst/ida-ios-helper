@@ -17,7 +17,7 @@ import idaapi
 from ida_idaapi import plugin_t
 from ida_kernwin import UI_Hooks, action_desc_t
 
-IS_DEBUG = (Path(__file__).parent.parent / "DEBUG").exists()
+IS_DEBUG = (Path(__file__).parent.parent.parent / "DEBUG").exists()
 
 DISABLED_PLUGINS_PATH = Path(__file__).parent.parent / "DISABLED_PLUGINS"
 
