@@ -145,4 +145,6 @@ def get_isa(isa: cexpr_t) -> str | None:
     elif isa.op == ida_hexrays.cot_helper:
         return isa.helper
     return None
+
+
 # endregion

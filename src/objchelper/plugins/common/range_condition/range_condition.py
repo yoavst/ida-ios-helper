@@ -10,6 +10,7 @@ def is_unsigned_comparison_expr(e: cexpr_t) -> bool:
     """Check if the expression is an unsigned comparison."""
     return e.op in (ida_hexrays.cot_uge, ida_hexrays.cot_ule, ida_hexrays.cot_ugt, ida_hexrays.cot_ult)
 
+
 class RangeConditionTreeVisitor(ida_hexrays.ctree_visitor_t):
     def __init__(self, func: cfunc_t):
         super().__init__(ida_hexrays.CV_FAST)
@@ -22,10 +23,10 @@ class RangeConditionTreeVisitor(ida_hexrays.ctree_visitor_t):
 
         lhs, rhs = e.x, e.y
         if (
-                rhs.op != ida_hexrays.cot_num or
-                lhs.op not in (ida_hexrays.cot_add, ida_hexrays.cot_sub) or
-                lhs.x.op != ida_hexrays.cot_var or
-                lhs.y.op != ida_hexrays.cot_num
+            rhs.op != ida_hexrays.cot_num
+            or lhs.op not in (ida_hexrays.cot_add, ida_hexrays.cot_sub)
+            or lhs.x.op != ida_hexrays.cot_var
+            or lhs.y.op != ida_hexrays.cot_num
         ):
             return 0
 
@@ -50,6 +51,7 @@ class RangeConditionTreeVisitor(ida_hexrays.ctree_visitor_t):
         self.prune_now()
         return 0
 
+
 def replace_comparison_expr(e: cexpr_t, lhs: int, rhs: int, mod: int, var_expr: cexpr_t, func: cfunc_t) -> cexpr_t:
     """Replace the comparison expression with a new one based on the constants and variable."""
     math_op = IDA_OP_TO_MATH_OP[e.op]
@@ -62,21 +64,27 @@ def replace_comparison_expr(e: cexpr_t, lhs: int, rhs: int, mod: int, var_expr: 
         # var - lhs < rhs
         #       to
         # var < lhs_plus_rhs_mod or var >= lhs
-        first_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_plus_rhs_mod_expr, MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea)
+        first_condition = cexpr.from_binary_op(
+            cexpr_t(var_expr), lhs_plus_rhs_mod_expr, MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea
+        )
         second_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_expr, MATH_OP_TO_IDA_OP[">="], tif.BOOL, e.ea)
         op = ida_hexrays.cot_lor
     elif math_op == "<=":
         # var - lhs < rhs
         #       to
         # var <= lhs_plus_rhs_mod or var >= lhs
-        first_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_plus_rhs_mod_expr, MATH_OP_TO_IDA_OP["<="], tif.BOOL, e.ea)
+        first_condition = cexpr.from_binary_op(
+            cexpr_t(var_expr), lhs_plus_rhs_mod_expr, MATH_OP_TO_IDA_OP["<="], tif.BOOL, e.ea
+        )
         second_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_expr, MATH_OP_TO_IDA_OP[">="], tif.BOOL, e.ea)
         op = ida_hexrays.cot_lor
     elif math_op == ">":
         # var - lhs > rhs
         #       to
         # lhs_plus_rhs_mod < var < lhs
-        first_condition = cexpr.from_binary_op(lhs_plus_rhs_mod_expr, cexpr_t(var_expr), MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea)
+        first_condition = cexpr.from_binary_op(
+            lhs_plus_rhs_mod_expr, cexpr_t(var_expr), MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea
+        )
         second_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_expr, MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea)
         op = ida_hexrays.cot_land
 
@@ -84,7 +92,9 @@ def replace_comparison_expr(e: cexpr_t, lhs: int, rhs: int, mod: int, var_expr: 
         # var - lhs >= rhs
         #       to
         # lhs_plus_rhs_mod <= var < lhs
-        first_condition = cexpr.from_binary_op(lhs_plus_rhs_mod_expr, cexpr_t(var_expr), MATH_OP_TO_IDA_OP["<="], tif.BOOL, e.ea)
+        first_condition = cexpr.from_binary_op(
+            lhs_plus_rhs_mod_expr, cexpr_t(var_expr), MATH_OP_TO_IDA_OP["<="], tif.BOOL, e.ea
+        )
         second_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_expr, MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea)
         op = ida_hexrays.cot_land
     else:
@@ -100,6 +110,7 @@ IDA_OP_TO_MATH_OP: dict[int, Literal["<", "<=", ">", ">="]] = {
     ida_hexrays.cot_ult: "<",
 }
 MATH_OP_TO_IDA_OP = {v: k for k, v in IDA_OP_TO_MATH_OP.items()}
+
 
 class range_condition_optimizer(Hexrays_Hooks):
     def maturity(self, cfunc: cfunc_t, new_maturity: int) -> int:

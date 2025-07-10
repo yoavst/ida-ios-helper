@@ -5,9 +5,9 @@
 import abc
 import contextlib
 import dataclasses
-import os
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Protocol
 
 import ida_hexrays
@@ -17,7 +17,23 @@ import idaapi
 from ida_idaapi import plugin_t
 from ida_kernwin import UI_Hooks, action_desc_t
 
-IS_DEBUG = os.path.exists(os.path.join(os.path.dirname(__file__), "..", "..", "DEBUG"))
+IS_DEBUG = (Path(__file__).parent.parent / "DEBUG").exists()
+
+DISABLED_PLUGINS_PATH = Path(__file__).parent.parent / "DISABLED_PLUGINS"
+
+
+def get_disabled_plugins() -> set[str]:
+    """Return a list of disabled plugins."""
+    if not DISABLED_PLUGINS_PATH.exists():
+        return set()
+
+    disabled_plugins: set[str] = set()
+    with DISABLED_PLUGINS_PATH.open("r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                disabled_plugins.add(line)
+    return disabled_plugins
 
 
 class Component:
@@ -66,7 +82,8 @@ class PluginCore:
         self.name = name
         self.loaded = False
         self.mounted = False
-        self._components = [factory(self) for factory in component_factories]
+        all_components = [factory(self) for factory in component_factories]
+        self._components = [component for component in all_components if component.name not in get_disabled_plugins()]
 
         # we can 'defer' the load of the plugin core a little bit. this
         # ensures that all the other plugins (eg, decompilers) can get loaded

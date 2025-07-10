@@ -176,5 +176,8 @@ cython_debug/
 # debug file
 src/DEBUG
 
+# Disable plugins file
+src/DISABLE_PLUGINS
+
 # Mac cache file
 .DS_Store
