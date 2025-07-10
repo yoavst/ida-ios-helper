@@ -25,8 +25,8 @@ class RangeConditionTreeVisitor(ida_hexrays.ctree_visitor_t):
         if (
             rhs.op != ida_hexrays.cot_num
             or lhs.op not in (ida_hexrays.cot_add, ida_hexrays.cot_sub)
-            or lhs.x.op != ida_hexrays.cot_var
             or lhs.y.op != ida_hexrays.cot_num
+            or lhs.x.has_side_effects()
         ):
             return 0
 
@@ -45,62 +45,82 @@ class RangeConditionTreeVisitor(ida_hexrays.ctree_visitor_t):
         if lhs.op == ida_hexrays.cot_add:
             lhs_const = mod - lhs_const
 
-        replacement_expr = replace_comparison_expr(e, lhs_const, rhs_const, mod, lhs.x, self.func)
+        replacement_expr = (
+            create_range_condition_greater_than
+            if e.op in (ida_hexrays.cot_ugt, ida_hexrays.cot_uge)
+            else create_range_condition_less_than
+        )(e, lhs_const, rhs_const, mod, lhs.x, self.func)
         e.swap(replacement_expr)
 
         self.prune_now()
         return 0
 
 
-def replace_comparison_expr(e: cexpr_t, lhs: int, rhs: int, mod: int, var_expr: cexpr_t, func: cfunc_t) -> cexpr_t:
-    """Replace the comparison expression with a new one based on the constants and variable."""
-    math_op = IDA_OP_TO_MATH_OP[e.op]
-    lhs_plus_rhs_mod = (lhs + rhs) % mod
+def create_range_condition_less_than(e: cexpr_t, lhs: int, rhs: int, mod: int, x: cexpr_t, func: cfunc_t) -> cexpr_t:
+    """Create a range condition for the expression `x - lhs < rhs`."""
 
-    lhs_plus_rhs_mod_expr = cexpr.from_const_value(lhs_plus_rhs_mod, func, e.x.y.ea)
+    lhs_plus_rhs = lhs + rhs
+    lhs_plus_rhs_mod_n = lhs_plus_rhs % mod
+    # if lhs + rhs < mod, we can use a single range condition
+    #   x - lhs < rhs  => x ∈ [lhs, lhs + rhs) ==> lhs < x && x < lhs + rhs
+    #   x - lhs <= rhs => x ∈ [lhs, lhs + rhs] ==> lhs < x && x <= lhs + rhs
+    # if lhs + rhs >= mod, we need to use two range conditions
+    #   x - lhs < rhs  => x ∈ [lhs, mod) U x ∈ [0, (lhs+rhs) mod n) ==> lhs < x || x < (lhs + rhs) mod n
+    #   x - lhs <= rhs => x ∈ [lhs, mod) U x ∈ [0, (lhs+rhs) mod n] ==> lhs < x || x <= (lhs + rhs) mod n
+    # Notice that the conditions are the same, but it is either && or || depending on whether lhs + rhs < mod or not.
+
+    op: Literal["&&", "||"] = "||" if lhs_plus_rhs >= mod else "&&"
+    lhs_plus_rhs_expr = cexpr.from_const_value(lhs_plus_rhs_mod_n, func, e.x.y.ea)
     lhs_expr = cexpr.from_const_value(lhs, func, e.y.ea)
+    return _bin_op(
+        _bin_op(lhs_expr, "<", cexpr_t(x), e.ea),
+        op,
+        _bin_op(cexpr_t(x), IDA_OP_TO_MATH_OP[e.op], lhs_plus_rhs_expr, e.ea),
+        e.ea,
+    )
 
-    if math_op == "<":
-        # var - lhs < rhs
-        #       to
-        # var < lhs_plus_rhs_mod or var >= lhs
-        first_condition = cexpr.from_binary_op(
-            cexpr_t(var_expr), lhs_plus_rhs_mod_expr, MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea
-        )
-        second_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_expr, MATH_OP_TO_IDA_OP[">="], tif.BOOL, e.ea)
-        op = ida_hexrays.cot_lor
-    elif math_op == "<=":
-        # var - lhs < rhs
-        #       to
-        # var <= lhs_plus_rhs_mod or var >= lhs
-        first_condition = cexpr.from_binary_op(
-            cexpr_t(var_expr), lhs_plus_rhs_mod_expr, MATH_OP_TO_IDA_OP["<="], tif.BOOL, e.ea
-        )
-        second_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_expr, MATH_OP_TO_IDA_OP[">="], tif.BOOL, e.ea)
-        op = ida_hexrays.cot_lor
-    elif math_op == ">":
-        # var - lhs > rhs
-        #       to
-        # lhs_plus_rhs_mod < var < lhs
-        first_condition = cexpr.from_binary_op(
-            lhs_plus_rhs_mod_expr, cexpr_t(var_expr), MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea
-        )
-        second_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_expr, MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea)
-        op = ida_hexrays.cot_land
 
-    elif math_op == ">=":
-        # var - lhs >= rhs
-        #       to
-        # lhs_plus_rhs_mod <= var < lhs
-        first_condition = cexpr.from_binary_op(
-            lhs_plus_rhs_mod_expr, cexpr_t(var_expr), MATH_OP_TO_IDA_OP["<="], tif.BOOL, e.ea
+def create_range_condition_greater_than(e: cexpr_t, lhs: int, rhs: int, mod: int, x: cexpr_t, func: cfunc_t) -> cexpr_t:
+    """Create a range condition for the expression `x - lhs > rhs`."""
+
+    lhs_plus_rhs = lhs + rhs
+    lhs_plus_rhs_mod_n = lhs_plus_rhs % mod
+
+    lhs_plus_rhs_expr = cexpr.from_const_value(lhs_plus_rhs_mod_n, func, e.x.y.ea)
+    lhs_expr = cexpr.from_const_value(lhs, func, e.y.ea)
+    op: Literal["<", "<="] = "<" if e.op == ida_hexrays.cot_ugt else "<="
+
+    # if lhs + rhs < mod:
+    #   x - lhs > rhs  => x ∈ (lhs + rhs, mod) U x ∈ [0, lhs) ==> lhs + rhs < x || x < lhs
+    #   x - lhs >= rhs => x ∈ [lhs + rhs, mod) U x ∈ [0, lhs] ==> lhs + rhs <= x || x < lhs
+    if lhs_plus_rhs < mod:
+        return _bin_op(
+            _bin_op(lhs_plus_rhs_expr, op, cexpr_t(x), e.ea),
+            "||",
+            _bin_op(cexpr_t(x), "<", lhs_expr, e.ea),
+            e.ea,
         )
-        second_condition = cexpr.from_binary_op(cexpr_t(var_expr), lhs_expr, MATH_OP_TO_IDA_OP["<"], tif.BOOL, e.ea)
-        op = ida_hexrays.cot_land
     else:
-        raise ValueError("impossible to reach here, all cases should be handled")
+        # if lhs + rhs >= mod:
+        #   x - lhs > rhs  => x ∈ (lhs + rhs (mod n), lhs) ==> lhs + rhs (mod n) < x && x < lhs
+        #   x - lhs >= rhs => x ∈ [lhs + rhs (mod n), lhs) ==> lhs + rhs (mod n) <= x && x < lhs
+        return _bin_op(
+            _bin_op(lhs_plus_rhs_expr, op, cexpr_t(x), e.ea),
+            "&&",
+            _bin_op(cexpr_t(x), "<", lhs_expr, e.ea),
+            e.ea,
+        )
 
-    return cexpr.from_binary_op(first_condition, second_condition, op, tif.BOOL, e.ea)
+
+def _bin_op(left: cexpr_t, op: Literal["<", "<=", ">", ">=", "&&", "||"], right: cexpr_t, ea: int) -> cexpr_t:
+    """Create a boolean binary operation expression."""
+    if op == "&&":
+        ida_op = ida_hexrays.cot_land
+    elif op == "||":
+        ida_op = ida_hexrays.cot_lor
+    else:
+        ida_op = MATH_OP_TO_IDA_OP[op]
+    return cexpr.from_binary_op(left, right, ida_op, tif.BOOL, ea)
 
 
 IDA_OP_TO_MATH_OP: dict[int, Literal["<", "<=", ">", ">="]] = {
