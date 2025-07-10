@@ -1,5 +1,5 @@
 import ida_hexrays
-from ida_hexrays import Hexrays_Hooks, cexpr_t, cfunc_t, cinsn_t
+from ida_hexrays import Hexrays_Hooks, cexpr_t, cfuncptr_t, cinsn_t
 from idahelper import memory
 from idahelper.ast import cexpr, cinsn
 
@@ -9,7 +9,7 @@ from .utils import StructFieldAssignment, get_struct_fields_assignments
 
 
 class objc_blocks_optimizer_hooks_t(Hexrays_Hooks):
-    def maturity(self, func: cfunc_t, new_maturity: int) -> int:
+    def maturity(self, func: cfuncptr_t, new_maturity: int) -> int:
         if new_maturity < ida_hexrays.CMAT_CPA:
             return 0
 
@@ -19,7 +19,7 @@ class objc_blocks_optimizer_hooks_t(Hexrays_Hooks):
 
 
 # region byref args
-def optimize_block_byref_args(func: cfunc_t) -> bool:
+def optimize_block_byref_args(func: cfuncptr_t) -> bool:
     # Check if the function has blocks
     byref_lvars = get_block_byref_args_lvars(func)
     if not byref_lvars:
@@ -33,7 +33,7 @@ def optimize_block_byref_args(func: cfunc_t) -> bool:
     return has_optimized
 
 
-def optimize_block_byref_arg(lvar: str, func: cfunc_t, assignments: list[StructFieldAssignment]) -> bool:
+def optimize_block_byref_arg(lvar: str, func: cfuncptr_t, assignments: list[StructFieldAssignment]) -> bool:
     byref_fields = BlockByRefArgBaseFieldsAssignments.initial()
     for assignment in assignments:
         byref_fields.add_assignment(assignment)
@@ -49,7 +49,7 @@ def optimize_block_byref_arg(lvar: str, func: cfunc_t, assignments: list[StructF
     return True
 
 
-def create_byref_init_insn(lvar: str, func: cfunc_t, byref_fields: BlockByRefArgBaseFieldsAssignments) -> cinsn_t:
+def create_byref_init_insn(lvar: str, func: cfuncptr_t, byref_fields: BlockByRefArgBaseFieldsAssignments) -> cinsn_t:
     if byref_fields.byref_dispose is not None:
         call = cexpr.call_helper_from_sig(
             "_byref_block_arg_ex_init",
@@ -78,7 +78,7 @@ def create_byref_init_insn(lvar: str, func: cfunc_t, byref_fields: BlockByRefArg
 
 
 # region blocks
-def optimize_blocks(func: cfunc_t) -> bool:
+def optimize_blocks(func: cfuncptr_t) -> bool:
     # Check if the function has blocks
     block_lvars = get_ida_block_lvars(func)
     if not block_lvars:
@@ -92,7 +92,7 @@ def optimize_blocks(func: cfunc_t) -> bool:
     return has_optimized
 
 
-def optimize_block(lvar: str, func: cfunc_t, assignments: list[StructFieldAssignment]) -> bool:
+def optimize_block(lvar: str, func: cfuncptr_t, assignments: list[StructFieldAssignment]) -> bool:
     block_fields = BlockBaseFieldsAssignments.initial()
     for assignment in assignments:
         block_fields.add_assignment(assignment)
@@ -108,7 +108,7 @@ def optimize_block(lvar: str, func: cfunc_t, assignments: list[StructFieldAssign
     return True
 
 
-def create_block_init_insn(lvar: str, func: cfunc_t, block_fields: BlockBaseFieldsAssignments) -> cinsn_t:
+def create_block_init_insn(lvar: str, func: cfuncptr_t, block_fields: BlockBaseFieldsAssignments) -> cinsn_t:
     if (isa := get_isa(block_fields.isa)) is not None:
         call = cexpr.call_helper_from_sig(
             f"_{get_block_type(isa)}_block_init",
@@ -144,6 +144,5 @@ def get_isa(isa: cexpr_t) -> str | None:
             return memory.name_from_ea(inner.obj_ea)
     elif isa.op == ida_hexrays.cot_helper:
         return isa.helper
-
-
+    return None
 # endregion
