@@ -8,7 +8,6 @@ from ida_hexrays import cexpr_t, cfuncptr_t, cinsn_t, citem_t, get_widget_vdui
 from ida_kernwin import Choose
 from ida_typeinf import tinfo_t
 from idahelper import cpp, functions, memory, segments, tif, widgets, xrefs
-from idahelper.ast import cfunc
 
 
 def show_segment_xrefs(expr: cexpr_t, func_ea: int):

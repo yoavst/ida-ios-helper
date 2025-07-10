@@ -21,6 +21,7 @@ def create_comment(lhs: int, rhs: int, op: Literal["<", "<=", ">", ">="], var: s
     elif op == ">=":
         # var - lhs >= rhs
         return f"{lhs_plus_rhs_mod} <= {var} < {lhs}"
+    raise ValueError(f"Unsupported operator: {op}. Supported operators are <, <=, >, >=")
 
 
 class insn_optimizer_t(minsn_visitor_t):
@@ -40,7 +41,7 @@ class insn_optimizer_t(minsn_visitor_t):
         r = mop.get_const_int(insn.r, is_signed=True)
         if r is None or r >= 0:
             return
-        # Search for a substrucation of mop and const
+        # Search for a subtraction of mop and const
         if insn.l.t != ida_hexrays.mop_d:
             return
         left_insn: minsn_t = insn.l.d

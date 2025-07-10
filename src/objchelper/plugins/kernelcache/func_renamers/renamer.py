@@ -333,7 +333,7 @@ class FuncHandlerVirtualGetter(FuncHandler):
         self._rename_assignee_by_index(modifications, call, self.name_index, self.rename_modifier)
 
 
-class FuncHandlerVirtualSetter(FuncHandler, ABC):
+class FuncHandlerVirtualSetter(FuncHandler):
     def __init__(
         self,
         name: str,
