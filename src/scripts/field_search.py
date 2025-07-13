@@ -17,7 +17,15 @@ from idahelper.microcode.visitors import (
 
 PTR_SIZE = 8
 
-def search_field_access(struct_name: str, offset: int, segments_to_search: list[str], show_read: bool, show_write: bool, filter_types: bool = True):
+
+def search_field_access(
+    struct_name: str,
+    offset: int,
+    segments_to_search: list[str],
+    show_read: bool,
+    show_write: bool,
+    filter_types: bool = True,
+):
     """
     Search for field access in the given segments.
 
