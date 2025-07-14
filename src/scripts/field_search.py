@@ -1,5 +1,6 @@
 __all__ = ["search_field_access"]
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from typing import Generic, TypeVar
@@ -14,6 +15,7 @@ from idahelper.microcode.visitors import (
     TreeVisitOrder,
     extended_microcode_visitor_t,
 )
+from idahelper.segments import Segment
 
 PTR_SIZE = 8
 
@@ -43,42 +45,50 @@ def search_field_access(
 
     results: list[FieldAccess] = []
     for seg_to_search in segments_to_search:
-        seg = segments.get_segment_by_name(f"{seg_to_search}:__text")
-        if seg is None:
-            seg = segments.get_segment_by_name(f"{seg_to_search}:__TEXT_EXEC.__text")
+        seg = _get_text_segment(seg_to_search)
         if seg is None:
             print(f"[Error] segment {seg_to_search} not found")
             continue
         print(f"Searching in {seg.name}")
-        j = 0
 
-        for func in seg.functions():
-            j += 1
-            name = memory.name_from_ea(func.start_ea)
-
-            func_mba = mba.from_func(func.start_ea)
-            if func_mba is None:
-                print(f"[Error] failed to get mba of func {name}")
+        for result in _collect_field_accesses(seg):
+            # Skip vtable
+            if result.prev_access is not None and result.prev_access.offset == 0:
                 continue
 
-            collector = field_access_collector()
-            collector.visit_function(func_mba)
+            if filter_types and result.src_type is not None and str(result.src_type) not in typ_children:
+                continue
 
-            for result in collector.results:
-                # Skip vtable
-                if result.prev_access is not None and result.prev_access.offset == 0:
-                    continue
+            if result.offset == offset:
+                results.append(result)
 
-                if filter_types and result.src_type is not None and str(result.src_type) not in typ_children:
-                    continue
+        print(f"[Status] Finished scanning in {seg_to_search}!")
 
-                if result.offset == offset:  # and result.type == AccessType.WRITE:
-                    print("encountered result:", result)
-                    results.append(result)
-
-        print(f"done for {seg_to_search}!", j)
     for result in results:
-        print(result.compact_str())
+        if (show_read and result.type == AccessType.READ) or (show_write and result.type == AccessType.WRITE):
+            print(result.compact_str())
+
+
+def _collect_field_accesses(segment: Segment) -> "Iterator[FieldAccess]":
+    for func in segment.functions():
+        name = memory.name_from_ea(func.start_ea)
+
+        func_mba = mba.from_func(func.start_ea)
+        if func_mba is None:
+            print(f"[Error] failed to get mba of func {name}")
+            continue
+
+        collector = field_access_collector()
+        collector.visit_function(func_mba)
+        yield from collector.results
+
+
+def _get_text_segment(name: str) -> Segment | None:
+    """Get the text segment for the given name, or None if not found."""
+    seg = segments.get_segment_by_name(f"{name}:__text")
+    if seg is None:
+        seg = segments.get_segment_by_name(f"{name}:__TEXT_EXEC.__text")
+    return seg
 
 
 class AccessType(Enum):
