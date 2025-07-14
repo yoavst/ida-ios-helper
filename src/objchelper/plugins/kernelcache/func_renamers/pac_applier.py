@@ -65,10 +65,15 @@ def fix_calls(class_type: tinfo_t, calls: list[Call]):
             print(f"[Warning] Could not find vtable member for {class_type} at {offset:X}")
             continue
 
-        tif.apply_tinfo_to_call(vtable_member.type, call.ea)
-        print(
-            f"Applying vtable type {vtable_member.type} to call at {call.ea:X} for {class_type}::{vtable_member.name} at offset {offset:X}"
-        )
+        # There are a lot of false positive signatures that have only "this" argument.
+        # We prefer not to force non-arguments calls rather than hide arguments.
+        vtable_member_type: tinfo_t = tinfo_t(vtable_member.type)
+        vtable_member_type.remove_ptr_or_array()
+        if vtable_member_type.get_nargs() != 1:
+            tif.apply_tinfo_to_call(vtable_member.type, call.ea)
+            print(
+                f"Applying vtable type {vtable_member.type} to call at {call.ea:X} for {class_type}::{vtable_member.name} at offset {offset:X}"
+            )
 
 
 def should_modify_type(current_type: tinfo_t, new_type: tinfo_t) -> bool:
