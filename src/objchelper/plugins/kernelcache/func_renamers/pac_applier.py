@@ -26,12 +26,13 @@ def apply_pac(func: func_t) -> bool:
 
     with Modifications(decompiled_func.entry_ea, decompiled_func.get_lvars()) as modifications:
         process_function_calls(decompiled_func.mba, xref_matcher, modifications)
-        for lvar, typ in helper.lvars():
+        for lvar, typ, calls in helper.lvars():
             if not lvar.has_user_type and should_modify_type(lvar.type(), typ):
                 print(f"Modifying lvar {lvar.name} from {lvar.type()}* to {typ}")
                 modifications.modify_local(lvar.name, VariableModification(type=tif.pointer_of(typ)))
+                fix_calls(typ, calls)
 
-        for (cls_type, offset), typ in helper.fields():
+        for (cls_type, offset), typ, calls in helper.fields():
             member = tif.get_member(cls_type, offset)
             if member and member.size == 64 and should_modify_type(member.type, typ):
                 print(f"Modifying field {cls_type}::{member.name} from {member.type}* to {typ}")
@@ -41,8 +42,33 @@ def apply_pac(func: func_t) -> bool:
                     offset,
                     VariableModification(type=tif.pointer_of(typ)),
                 )
+                fix_calls(typ, calls)
 
     return True
+
+
+def fix_calls(class_type: tinfo_t, calls: list[Call]):
+    """Apply the call type from vtable definition to each of the calls in the list."""
+    if not calls:
+        return
+
+    vtable_type = tif.vtable_type_from_type(class_type)
+    if vtable_type is None:
+        print(f"[Warning] Could not find vtable type for {class_type}")
+        return
+
+    for call in calls:
+        assert call.indirect_info is not None
+        offset = call.indirect_info.offset
+        vtable_member = tif.get_member(vtable_type, offset)
+        if vtable_member is None:
+            print(f"[Warning] Could not find vtable member for {class_type} at {offset:X}")
+            continue
+
+        tif.apply_tinfo_to_call(vtable_member.type, call.ea)
+        print(
+            f"Applying vtable type {vtable_member.type} to call at {call.ea:X} for {class_type}::{vtable_member.name} at offset {offset:X}"
+        )
 
 
 def should_modify_type(current_type: tinfo_t, new_type: tinfo_t) -> bool:
@@ -64,17 +90,25 @@ class MostSpecificAncestorHelper:
     def __init__(self):
         self._lvars: CustomDict[lvar_t, CustomSet[tinfo_t]] = CustomDict(lambda v: v.name)
         self._fields: CustomDict[tuple[tinfo_t, int], CustomSet[tinfo_t]] = CustomDict(lambda t: (t[0].get_tid(), t[1]))
+
+        self._lvar_to_calls: CustomDict[lvar_t, list[Call]] = CustomDict(lambda v: v.name)
+        self._fields_to_calls: CustomDict[tuple[tinfo_t, int], list[Call]] = CustomDict(
+            lambda t: (t[0].get_tid(), t[1])
+        )
+
         self._children_classes_cache: CustomDict[tinfo_t, list[tinfo_t]] = CustomDict(lambda t: t.get_tid())
         """Cache of mapping from a type to its children classes."""
 
-    def update_lvar(self, lvar: lvar_t, predicate: Sequence[tinfo_t]):
+    def update_lvar(self, lvar: lvar_t, predicate: Sequence[tinfo_t], call: Call):
         minimized = self._minimize(predicate)
         if lvar in self._lvars:
             self._lvars[lvar] &= self._children_of_union(minimized)
         else:
             self._lvars[lvar] = self._children_of_union(minimized)
 
-    def update_field(self, cls_type: tinfo_t, offset: int, predicate: Sequence[tinfo_t]):
+        self._lvar_to_calls.setdefault(lvar, []).append(call)
+
+    def update_field(self, cls_type: tinfo_t, offset: int, predicate: Sequence[tinfo_t], call: Call):
         minimized = self._minimize(predicate)
         key = (cls_type, offset)
         if key in self._fields:
@@ -82,19 +116,21 @@ class MostSpecificAncestorHelper:
         else:
             self._fields[key] = self._children_of_union(minimized)
 
-    def lvars(self) -> Iterable[tuple[lvar_t, tinfo_t]]:
+        self._fields_to_calls.setdefault(key, []).append(call)
+
+    def lvars(self) -> Iterable[tuple[lvar_t, tinfo_t, list[Call]]]:
         """Get all lvars with their most specific type."""
         for lvar, state in self._lvars.items():
             ancestor = tif.get_common_ancestor(list(state))
             assert ancestor is not None
-            yield lvar, ancestor
+            yield lvar, ancestor, self._lvar_to_calls[lvar]
 
-    def fields(self) -> Iterable[tuple[tuple[tinfo_t, int], tinfo_t]]:
+    def fields(self) -> Iterable[tuple[tuple[tinfo_t, int], tinfo_t, list[Call]]]:
         """Get all fields with their most specific type."""
         for field, state in self._fields.items():
             ancestor = tif.get_common_ancestor(list(state))
             assert ancestor is not None
-            yield field, ancestor
+            yield field, ancestor, self._fields_to_calls[field]
 
     def _get_children_classes(self, typ: tinfo_t) -> list[tinfo_t]:
         """Get all children of a type, caching the result."""
@@ -103,10 +139,6 @@ class MostSpecificAncestorHelper:
             children.append(typ)
             self._children_classes_cache[typ] = children
         return self._children_classes_cache[typ]
-
-    def _merge_state(self, state: CustomSet[tinfo_t], predicate: tuple[tinfo_t, ...]):
-        children = self._children_of_union(predicate)
-        state &= children
 
     def _children_of_union(self, union: tuple[tinfo_t, ...]) -> CustomSet[tinfo_t]:
         """Get all children of a union type."""
@@ -144,7 +176,7 @@ class MostSpecificAncestorHelper:
 
 
 def on_unknown_call_wrapper(helper: MostSpecificAncestorHelper) -> Callable[[Call, Modifications], None]:
-    def on_unknown_call(call: Call, modifications: Modifications):
+    def on_unknown_call(call: Call, _modifications: Modifications):
         """Called when a call is found"""
         if call.indirect_info is None:
             return
@@ -156,9 +188,9 @@ def on_unknown_call_wrapper(helper: MostSpecificAncestorHelper) -> Callable[[Cal
         if candidates:
             if call.indirect_info.var is not None:
                 lvar = call.indirect_info.var
-                helper.update_lvar(lvar, candidates)
+                helper.update_lvar(lvar, candidates, call)
             elif call.indirect_info.field is not None:
                 cls_type, offset = call.indirect_info.field
-                helper.update_field(cls_type, offset, candidates)
+                helper.update_field(cls_type, offset, candidates, call)
 
     return on_unknown_call

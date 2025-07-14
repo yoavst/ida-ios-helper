@@ -10,7 +10,7 @@ repository = "https://github.com/yoavst/ida-ios-helper"
 
 requires-python = ">=3.10"
 dependencies = [
-    "idahelper==1.0.5",
+    "idahelper==1.0.6",
 ]
 
 [project.urls]
