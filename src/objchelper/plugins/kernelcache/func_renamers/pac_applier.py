@@ -6,10 +6,10 @@ from ida_typeinf import tinfo_t
 from idahelper import tif
 from idahelper.ast import cfunc
 from idahelper.ast.lvars import VariableModification
+from idahelper.pac import local as pac
 
 from objchelper.base.utils import CustomDict, CustomSet
 
-from . import fast_pac as pac
 from .renamer import (
     Modifications,
 )
