@@ -30,7 +30,7 @@ from .block_arg_byref import (
 from .utils import StructFieldAssignment, get_struct_fields_assignments
 
 
-def try_add_block_arg_byref_to_func(func: cfuncptr_t) -> None:
+def try_add_block_arg_byref_to_func(func: cfuncptr_t, is_ui: bool = True) -> None:
     block_lvars = get_ida_block_lvars(func)
     if not block_lvars:
         return
@@ -65,7 +65,8 @@ def try_add_block_arg_byref_to_func(func: cfuncptr_t) -> None:
             print("[Error] Failed to modify lvars")
 
         # Finally, refresh the widget
-        widgets.refresh_pseudocode_widgets()
+        if is_ui:
+            widgets.refresh_pseudocode_widgets()
 
 
 def set_new_type_for_member(assignment: StructFieldAssignment, new_type: tinfo_t) -> bool:
@@ -263,6 +264,7 @@ def get_by_ref_args_for_block_candidates(assignments: list[StructFieldAssignment
     """
     possible_stack_offsets = {}
     for assignment in assignments:
+        stack_offset = -1
         # Skip fields that are not args
         if not block_member_is_arg_field(assignment.member):
             continue
@@ -277,7 +279,7 @@ def get_by_ref_args_for_block_candidates(assignments: list[StructFieldAssignment
             if is_block_arg_byref_type(refed_expr.v.getv().type()):
                 continue
             # Return the stack offset of the variable
-            stack_offset: int = refed_expr.v.getv().get_stkoff()
+            stack_offset = refed_expr.v.getv().get_stkoff()
         # block.lvar2 = v8 (and v8 is array type)
         elif expr.op == ida_hexrays.cot_var:
             # The variable could not have been handled, as it should be a ref in this case
@@ -285,7 +287,7 @@ def get_by_ref_args_for_block_candidates(assignments: list[StructFieldAssignment
             # will represent a byref arg block and will not be a ref.
             if not expr.v.getv().type().is_array():
                 continue
-            stack_offset: int = expr.v.getv().get_stkoff()
+            stack_offset = expr.v.getv().get_stkoff()
 
         if stack_offset != -1:
             possible_stack_offsets[stack_offset] = assignment
