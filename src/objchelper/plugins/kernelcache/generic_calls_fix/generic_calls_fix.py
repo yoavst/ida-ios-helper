@@ -17,7 +17,10 @@ CAST_FUNCTIONS: dict[str | re.Pattern, str] = {
     "__ZN15OSMetaClassBase16requiredMetaCastEPKS_PK11OSMetaClass": "OSDynamicCast",
 }
 
-ALLOC_FUNCTION: dict[str | re.Pattern, str] = {"OSObject_typed_operator_new": "OSObjectTypeAlloc"}
+ALLOC_FUNCTION: dict[str | re.Pattern, str] = {
+    "OSObject_typed_operator_new": "OSObjectTypeAlloc",
+    "_OSObject_typed_operator_new": "OSObjectTypeAlloc",
+}
 
 OS_OBJECT_TYPE: tinfo_t = tif.from_c_type("OSObject*")  # type: ignore  # noqa: PGH003
 SIZE_T_TYPE: tinfo_t = tif.from_c_type("size_t")  # type: ignore  # noqa: PGH003

@@ -127,14 +127,16 @@ class MostSpecificAncestorHelper:
         """Get all lvars with their most specific type."""
         for lvar, state in self._lvars.items():
             ancestor = tif.get_common_ancestor(list(state))
-            assert ancestor is not None
+            if ancestor is None:
+                continue
             yield lvar, ancestor, self._lvar_to_calls[lvar]
 
     def fields(self) -> Iterable[tuple[tuple[tinfo_t, int], tinfo_t, list[Call]]]:
         """Get all fields with their most specific type."""
         for field, state in self._fields.items():
             ancestor = tif.get_common_ancestor(list(state))
-            assert ancestor is not None
+            if ancestor is None:
+                continue
             yield field, ancestor, self._fields_to_calls[field]
 
     def _get_children_classes(self, typ: tinfo_t) -> list[tinfo_t]:
