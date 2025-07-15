@@ -199,7 +199,7 @@ class StaticCallExtractorVisitor(extended_microcode_visitor_t):
             lvar_type = lvar.type()
             callback = self.matcher.match_indirect_call(lvar_type, const_offset)
             indirect_info = IndirectCallInfo(ldx_ins_2.r, const_offset, var=lvar)
-        # Maybe expect ldx of an add with const
+        # Maybe expect ldx of an add with const (field)
         elif ldx_ins_2.r.t == ida_hexrays.mop_d and ldx_ins_2.r.d.opcode == ida_hexrays.m_ldx:
             ldx_ins_3 = ldx_ins_2.r.d
 
@@ -220,7 +220,7 @@ class StaticCallExtractorVisitor(extended_microcode_visitor_t):
             lvar_type: tinfo_t = lvar.type()
             if lvar_type.is_ptr():
                 lvar_type = lvar_type.get_pointed_object()
-            field_type = self._try_get_memeber_type(lvar_type, const_offset_2)
+            field_type = self._try_get_member_type(lvar_type, const_offset_2)
             callback = self.matcher.match_indirect_call(field_type, const_offset)
             indirect_info = IndirectCallInfo(ldx_ins_2.r, const_offset, field=(lvar_type, const_offset_2))
         else:
@@ -231,9 +231,10 @@ class StaticCallExtractorVisitor(extended_microcode_visitor_t):
 
         callback(self._build_call_for_callback(ins, indirect_info), self.ref)
 
-    def _try_get_memeber_type(self, typ: tinfo_t, offset: int) -> tinfo_t:
-        member = tif.get_member(typ, offset)
-        return member.type if member is not None else VOID_POINTER_TYPE
+    @staticmethod
+    def _try_get_member_type(typ: tinfo_t, offset: int) -> tinfo_t:
+        res = tif.get_member_recursive(typ, offset)
+        return tinfo_t(res[1].type) if res is not None else VOID_POINTER_TYPE
 
     def _build_call_for_callback(self, ins: minsn_t, indirect_info: IndirectCallInfo | None) -> Call:
         """Build a Call object for the given instruction."""
