@@ -33,12 +33,16 @@ def apply_pac(func: func_t) -> bool:
                 fix_calls(typ, calls)
 
         for (cls_type, offset), typ, calls in helper.fields():
-            member = tif.get_member(cls_type, offset)
-            if member and member.size == 64 and should_modify_type(member.type, typ):
+            typ_res = tif.get_member_recursive(cls_type, offset)
+            if typ_res is None:
+                print(f"[Warning] Could not find member at offset {offset:X} in {cls_type}")
+                continue
+            actual_typ, member = typ_res
+            if member.size == 64 and should_modify_type(member.type, typ):
                 print(f"Modifying field {cls_type}::{member.name} from {member.type}* to {typ}")
                 # noinspection PyTypeChecker
                 modifications.modify_type(
-                    cls_type.get_type_name(),  # pyright: ignore [reportArgumentType]
+                    actual_typ.get_type_name(),  # pyright: ignore [reportArgumentType]
                     offset,
                     VariableModification(type=tif.pointer_of(typ)),
                 )
