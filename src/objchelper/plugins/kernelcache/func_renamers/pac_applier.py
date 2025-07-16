@@ -1,7 +1,9 @@
 from collections.abc import Callable, Iterable, Sequence
 
+import ida_hexrays
+import idaapi
 from ida_funcs import func_t
-from ida_hexrays import lvar_t
+from ida_hexrays import cexpr_t, ctree_parentee_t, lvar_t
 from ida_typeinf import tinfo_t
 from idahelper import tif
 from idahelper.ast import cfunc
@@ -26,8 +28,10 @@ def apply_pac(func: func_t) -> bool:
 
     with Modifications(decompiled_func.entry_ea, decompiled_func.get_lvars()) as modifications:
         process_function_calls(decompiled_func.mba, xref_matcher, modifications)
+        has_changed = False
         for lvar, typ, calls in helper.lvars():
             if not lvar.has_user_type and should_modify_type(lvar.type(), typ):
+                has_changed = True
                 print(f"Modifying lvar {lvar.name} from {lvar.type()}* to {typ}")
                 modifications.modify_local(lvar.name, VariableModification(type=tif.pointer_of(typ)))
                 fix_calls(typ, calls)
@@ -39,6 +43,7 @@ def apply_pac(func: func_t) -> bool:
                 continue
             actual_typ, member = typ_res
             if member.size == 64 and should_modify_type(member.type, typ):
+                has_changed = True
                 print(f"Modifying field {cls_type}::{member.name} from {member.type}* to {typ}")
                 # noinspection PyTypeChecker
                 modifications.modify_type(
@@ -48,7 +53,52 @@ def apply_pac(func: func_t) -> bool:
                 )
                 fix_calls(typ, calls)
 
-    return True
+    if has_changed:
+        fix_empty_calls(func)
+
+    return has_changed
+
+
+def fix_empty_calls(func: func_t):
+    """If after the modifications there are calls with no parameters, do force the call type as it is better then nothing"""
+    decompiled_func = ida_hexrays.decompile(func.start_ea, flags=ida_hexrays.DECOMP_NO_CACHE)
+    if decompiled_func is None:
+        print(f"[Warning] Could not decompile function {func.start_ea:X} to fix empty calls")
+        return
+
+    # noinspection PyTypeChecker
+    EmptyCallTreeVisitor().apply_to(decompiled_func.body, None)  # pyright: ignore[reportIncompatibleMethodCall]
+
+
+class EmptyCallTreeVisitor(ctree_parentee_t):
+    def visit_expr(self, expr: cexpr_t) -> int:  # pyright: ignore[reportIncompatibleMethodOverride]
+        # Filter dynamic calls with no parameters
+        if (
+            expr.op != ida_hexrays.cot_call
+            or not expr.x.type.is_funcptr()
+            or expr.a.size() != 0
+            or expr.ea == idaapi.BADADDR
+        ):
+            return 0
+
+        # Make sure it is a call to a vtable member
+        x = expr.x
+        # Handle cast of the function type
+        if x.op == ida_hexrays.cot_cast:
+            x = x.x
+
+        # Check it is a member
+        if x.op != ida_hexrays.cot_memptr:
+            return 0
+
+        # Check it is a member of a vtable
+        possible_vtable_type: tinfo_t = x.x.type
+        if not possible_vtable_type.is_ptr() or not possible_vtable_type.get_pointed_object().is_vftable():
+            return 0
+
+        # This is a vtable call with no parameters, apply the type to the call
+        apply_vtable_type_to_call(expr.ea, possible_vtable_type.get_pointed_object(), expr.x.m, apply_if_no_args=True)
+        return 0
 
 
 def fix_calls(class_type: tinfo_t, calls: list[Call]):
@@ -64,20 +114,27 @@ def fix_calls(class_type: tinfo_t, calls: list[Call]):
     for call in calls:
         assert call.indirect_info is not None
         offset = call.indirect_info.offset
-        vtable_member = tif.get_member(vtable_type, offset)
-        if vtable_member is None:
-            print(f"[Warning] Could not find vtable member for {class_type} at {offset:X}")
-            continue
+        apply_vtable_type_to_call(call.ea, vtable_type, offset, apply_if_no_args=False)
 
-        # There are a lot of false positive signatures that have only "this" argument.
-        # We prefer not to force non-arguments calls rather than hide arguments.
-        vtable_member_type: tinfo_t = tinfo_t(vtable_member.type)
-        vtable_member_type.remove_ptr_or_array()
-        if vtable_member_type.get_nargs() != 1:
-            tif.apply_tinfo_to_call(vtable_member.type, call.ea)
-            print(
-                f"Applying vtable type {vtable_member.type} to call at {call.ea:X} for {class_type}::{vtable_member.name} at offset {offset:X}"
-            )
+
+def apply_vtable_type_to_call(call_ea: int, vtable_type: tinfo_t, offset: int, apply_if_no_args: bool) -> bool:
+    """Apply the vtable type to the call at the given ea."""
+    vtable_member = tif.get_member(vtable_type, offset)
+    if vtable_member is None:
+        print(f"[Warning] Could not find vtable member for {vtable_type} at {offset:X}")
+        return False
+
+    # There are a lot of false positive signatures that have only "this" argument.
+    # We prefer not to force non-arguments calls rather than hide arguments.
+    vtable_member_type: tinfo_t = tinfo_t(vtable_member.type)
+    vtable_member_type.remove_ptr_or_array()
+    if apply_if_no_args or vtable_member_type.get_nargs() != 1:
+        tif.apply_tinfo_to_call(vtable_member.type, call_ea)
+        print(
+            f"Applying vtable type {vtable_member.type} to call at {call_ea:X} for {vtable_type}::{vtable_member.name} at offset {offset:X}"
+        )
+        return True
+    return False
 
 
 def should_modify_type(current_type: tinfo_t, new_type: tinfo_t) -> bool:
