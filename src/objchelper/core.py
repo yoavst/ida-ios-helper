@@ -9,6 +9,7 @@ from .plugins.common.clang_blocks import clang_block_args_analyzer_component, cl
 from .plugins.common.jump_to_string import jump_to_string_component
 from .plugins.common.outline import mark_outline_functions_component
 from .plugins.common.range_condition import range_condition_optimizer_component
+from .plugins.common.run_callback import run_callback
 from .plugins.common.segment_xrefs import show_segment_xrefs_component
 from .plugins.kernelcache.cpp_vtbl import jump_to_vtable_component
 from .plugins.kernelcache.func_renamers import (
@@ -104,7 +105,4 @@ def kernel_cache_plugins() -> list[ComponentFactory]:
     ]
 
 
-plugin_core = PluginCore.factory(
-    "iOSHelper",
-    get_modules_for_file(),
-)
+plugin_core = PluginCore.factory("iOSHelper", get_modules_for_file(), run_callback)

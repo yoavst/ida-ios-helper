@@ -1,4 +1,4 @@
-__all__ = ["apply_kalloc_type_component"]
+__all__ = ["apply_kalloc_type_component", "apply_kalloc_types"]
 
 import ida_kernwin
 import idaapi

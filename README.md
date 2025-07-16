@@ -274,6 +274,25 @@ Use `Ctrl+4` inside an Objective-C method to list xrefs to its selector.
 
 ![Jump to selector](res/jump_to_selector_xrefs.png)
 
+## Call the plugin from python
+```python
+import idaapi
+
+# Call global analysis
+idaapi.load_and_run_plugin("iOS Helper", 1)
+
+
+# Call local analysis
+def write_ea_arg(ea: int):
+    n = idaapi.netnode()
+    n.create("$ idaioshelper")
+    n.altset(1, ea, "R")
+
+
+write_ea_arg(func_ea)
+idaapi.load_and_run_plugin("iOS Helper", 2)
+```
+
 ## Development
 
 In order to have autocomplete while developing, you need to add IDA's include folder ( `$IDA_INSTALLATION/python/3` ) to

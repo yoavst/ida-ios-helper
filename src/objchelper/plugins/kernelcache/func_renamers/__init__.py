@@ -1,4 +1,10 @@
-__all__ = ["apply_pac_component", "local_func_renamer_component", "mass_func_renamer_component"]
+__all__ = [
+    "apply_global_rename",
+    "apply_pac",
+    "apply_pac_component",
+    "local_func_renamer_component",
+    "mass_func_renamer_component",
+]
 
 import ida_kernwin
 import idaapi

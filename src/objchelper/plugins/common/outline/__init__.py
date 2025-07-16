@@ -1,4 +1,4 @@
-__all__ = ["mark_outline_functions_component"]
+__all__ = ["mark_all_outline_functions", "mark_outline_functions_component"]
 
 import ida_kernwin
 import idaapi

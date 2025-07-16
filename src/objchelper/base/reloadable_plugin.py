@@ -65,6 +65,7 @@ class Component:
 
 
 ComponentFactory = Callable[["PluginCore"], Component]
+RunCallbackFactory = Callable[["PluginCore"], Callable[[int], None]]
 
 
 class PluginCoreFactory(Protocol):
@@ -76,10 +77,12 @@ class PluginCore:
         self,
         name: str,
         component_factories: list[ComponentFactory],
+        run_callback_factory: RunCallbackFactory,
         defer_load: bool = False,
         should_mount: bool = True,
     ):
         self.name = name
+        self.run_callback = run_callback_factory(self)
         self.loaded = False
         self.mounted = False
         all_components = [factory(self) for factory in component_factories]
@@ -164,14 +167,24 @@ class PluginCore:
     def should_mount(self, _component: Component) -> bool:
         """
         Determine if a component should be mounted based on the current state of the plugin core.
-        In the future we will implement a more sophisticated system to determine if a component should be mounted.
+        In the future, we will implement a more sophisticated system to determine if a component should be mounted.
         """
         return True
 
+    def run(self, arg: int):
+        """
+        Proxy for the `run` method of the plugin_t interface.
+        """
+        self.run_callback(arg)
+
     @staticmethod
-    def factory(name: str, component_factories: list[ComponentFactory]) -> PluginCoreFactory:
+    def factory(
+        name: str, component_factories: list[ComponentFactory], run_callback_factory: RunCallbackFactory
+    ) -> PluginCoreFactory:
         def plugin_core_factory(defer_load: bool, should_mount: bool) -> PluginCore:
-            return PluginCore(name, component_factories, defer_load=defer_load, should_mount=should_mount)
+            return PluginCore(
+                name, component_factories, run_callback_factory, defer_load=defer_load, should_mount=should_mount
+            )
 
         # The type checker seems to have trouble with the factory method, so we need to suppress it
         # noinspection PyTypeChecker
@@ -214,6 +227,10 @@ class ReloadablePlugin(abc.ABC, plugin_t):
         idaapi.unregister_action(self._reload_plugin_action_id)
         if self.core is not None:
             self.core.unload()
+
+    def run(self, arg: int):
+        if self.core is not None:
+            self.core.run(arg)
 
     def reload(self):
         """Hot-reload the plugin core."""

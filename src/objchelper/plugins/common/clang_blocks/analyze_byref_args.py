@@ -6,13 +6,12 @@ from dataclasses import dataclass
 import ida_hexrays
 from ida_hexrays import (
     cexpr_t,
-    cfuncptr_t,
     mba_t,
     minsn_t,
     mop_t,
 )
 from ida_typeinf import tinfo_t
-from idahelper import tif, widgets
+from idahelper import tif
 from idahelper.ast import cexpr, cfunc, lvars
 from idahelper.ast.lvars import VariableModification
 from idahelper.microcode import mba, mblock, mop
@@ -30,10 +29,15 @@ from .block_arg_byref import (
 from .utils import StructFieldAssignment, get_struct_fields_assignments
 
 
-def try_add_block_arg_byref_to_func(func: cfuncptr_t, is_ui: bool = True) -> None:
+def try_add_block_arg_byref_to_func(ea: int) -> bool:
+    func = cfunc.from_ea(ea)
+    if func is None:
+        print(f"Failed to decompile func at {ea:X}")
+        return False
+
     block_lvars = get_ida_block_lvars(func)
     if not block_lvars:
-        return
+        return False
 
     # Scan the cfunc for possible ref args for blocks
     assignments = get_struct_fields_assignments(func, block_lvars)
@@ -45,7 +49,7 @@ def try_add_block_arg_byref_to_func(func: cfuncptr_t, is_ui: bool = True) -> Non
         stack_off_to_its_assignment.update(get_by_ref_args_for_block_candidates(assignments[lvar.name]))
 
     if not stack_off_to_its_assignment:
-        return
+        return False
 
     # scan the microcode using the offsets to see if any of them is a start of a by ref arg struct.
     lvar_modifications: dict[str, VariableModification] = {}  # lvar_name -> type_modification
@@ -64,9 +68,8 @@ def try_add_block_arg_byref_to_func(func: cfuncptr_t, is_ui: bool = True) -> Non
         if not lvars.perform_lvar_modifications_by_ea(func.entry_ea, lvar_modifications):
             print("[Error] Failed to modify lvars")
 
-        # Finally, refresh the widget
-        if is_ui:
-            widgets.refresh_pseudocode_widgets()
+        return True
+    return False
 
 
 def set_new_type_for_member(assignment: StructFieldAssignment, new_type: tinfo_t) -> bool:

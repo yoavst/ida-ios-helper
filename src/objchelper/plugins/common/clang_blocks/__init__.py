@@ -1,9 +1,13 @@
-__all__ = ["clang_block_args_analyzer_component", "clang_block_optimizer_component"]
+__all__ = [
+    "clang_block_args_analyzer_component",
+    "clang_block_optimizer_component",
+    "run_objc_plugin_on_func",
+    "try_add_block_arg_byref_to_func",
+]
 
 import ida_kernwin
 import idaapi
 from idahelper import widgets
-from idahelper.ast import cfunc
 
 from objchelper.base.reloadable_plugin import HexraysHookComponent, UIAction, UIActionsComponent
 
@@ -42,12 +46,8 @@ class ClangBlockDetectByrefAction(ida_kernwin.action_handler_t):
 
         run_objc_plugin_on_func(ctx.cur_ea)
         widgets.refresh_pseudocode_widgets()
-        decompiled = cfunc.from_ea(ctx.cur_ea)
-        if decompiled is None:
-            print(f"Failed to decompile func at {ctx.cur_ea:X}")
-            return
-
-        try_add_block_arg_byref_to_func(decompiled)
+        if try_add_block_arg_byref_to_func(ctx.cur_func.start_ea):
+            widgets.refresh_pseudocode_widgets()
         return 0
 
     def update(self, ctx) -> int:
