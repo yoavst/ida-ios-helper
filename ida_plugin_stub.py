@@ -8,8 +8,8 @@ Then copy:
 """
 
 # noinspection PyUnresolvedReferences
-__all__ = ["PLUGIN_ENTRY"]
+__all__ = ["PLUGIN_ENTRY", "iOSHelperPlugin"]
 try:
-    from ioshelper.ida_plugin import PLUGIN_ENTRY
+    from ioshelper.ida_plugin import PLUGIN_ENTRY, iOSHelperPlugin
 except ImportError:
     print("[Error] Could not load ida-ios-helper plugin. ida-ios-helper Python package doesn't seem to be installed.")

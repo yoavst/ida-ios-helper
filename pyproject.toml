@@ -34,7 +34,7 @@ version_scheme = "only-version"
 local_scheme = "no-local-version"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/objchelper"]
+packages = ["src/ioshelper"]
 
 [dependency-groups]
 dev = [

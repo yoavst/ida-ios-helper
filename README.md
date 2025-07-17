@@ -31,12 +31,9 @@ A plugin for IDA Pro 9.0+ to help with iOS code analysis.
 
 ## Installation
 
-1. clone the repo.
-2. symlink `src` folder into your IDA Pro plugins folder:
-    - on unix: `~/.idapro/plugins/`
-    - on windows: `%APPDATA%\Hex-Rays\IDA Pro\plugins`. `mklink /d` command can be used to create a symlink.
-3. Install `idahelper` to the python environment used by IDA.
-4. Restart IDA.
+1. Install this package using your IDA's python pip: `pip install ida-ios-helper`
+2. copy `ida-plugin.json` and `ida_plugin_stub.py` to your IDA's plugins folder: `~/.idapro/plugins/ida-ios-helper`.
+3. Restart IDA.
 
 ## Examples
 
@@ -275,6 +272,7 @@ Use `Ctrl+4` inside an Objective-C method to list xrefs to its selector.
 ![Jump to selector](res/jump_to_selector_xrefs.png)
 
 ## Call the plugin from python
+
 ```python
 import idaapi
 

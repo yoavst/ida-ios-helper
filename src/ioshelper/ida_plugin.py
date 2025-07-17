@@ -5,11 +5,12 @@ from ida_idaapi import plugin_t
 from ioshelper.base.reloadable_plugin import PluginCore, ReloadablePlugin
 
 
-class ObjcHelperPlugin(ReloadablePlugin):
+# noinspection PyPep8Naming
+class iOSHelperPlugin(ReloadablePlugin):
     flags = ida_idaapi.PLUGIN_HIDE
-    wanted_name = "Obj-C helper"
+    wanted_name = "iOS helper"
     wanted_hotkey = ""
-    comment = "Optimize Objective-C patterns in the code"
+    comment = "Optimize iOS patterns in the code"
     help = ""
 
     def __init__(self):
@@ -29,4 +30,4 @@ def plugin_core_wrapper_factory(*args, **kwargs) -> PluginCore:
 
 # noinspection PyPep8Naming
 def PLUGIN_ENTRY() -> plugin_t:
-    return ObjcHelperPlugin()
+    return iOSHelperPlugin()
