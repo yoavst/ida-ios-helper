@@ -10,6 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
+import ida_diskio
 import ida_hexrays
 import ida_idaapi
 import ida_kernwin
@@ -19,7 +20,7 @@ from ida_kernwin import UI_Hooks, action_desc_t
 
 IS_DEBUG = (Path(__file__).parent.parent.parent / "DEBUG").exists()
 
-DISABLED_PLUGINS_PATH = Path(__file__).parent.parent / "DISABLED_PLUGINS"
+DISABLED_PLUGINS_PATH = Path(ida_diskio.get_user_idadir()) / "ioshelper_disabled_plugins.txt"
 
 
 def get_disabled_plugins() -> set[str]:
