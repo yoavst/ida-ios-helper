@@ -2,11 +2,13 @@
   "IDAMetadataDescriptorVersion": 1,
   "plugin": {
     "name": "iOS Helper",
+    "description": "A plugin for IDA Pro 9.0+ to help with iOS code analysis.",
     "entryPoint": "ida_plugin_stub.py",
     "categories": [
       "decompilation"
     ],
     "idaVersions": ">=9.0",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "logoPath": "res/logo.png"
   }
 }
