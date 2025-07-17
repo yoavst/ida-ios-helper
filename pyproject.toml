@@ -1,12 +1,17 @@
 [project]
-name = "ida-objc-helper"
-version = "0.1.0"
+name = "ida-ios-helper"
+dynamic = ['version']
 description = "IDA Plugin for ease the reversing of iOS' usermode and kernelcache."
 authors = [
     { name = "Yoav Sternberg", email = "yoav.sternberg@gmail.com" },
 ]
 readme = "README.md"
 repository = "https://github.com/yoavst/ida-ios-helper"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 
 requires-python = ">=3.10"
 dependencies = [
@@ -17,18 +22,25 @@ dependencies = [
 Homepage = "https://github.com/yoavst/ida-ios-helper"
 Issues = "https://github.com/yoavst/ida-ios-helper/issues"
 
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+version_scheme = "only-version"
+local_scheme = "no-local-version"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/objchelper"]
+
 [dependency-groups]
 dev = [
     "ruff>=0.12.2",
     "vermin>=1.6.0",
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/objchelper"]
 
 [tool.ruff]
 target-version = "py310"

@@ -1,0 +1,12 @@
+{
+  "IDAMetadataDescriptorVersion": 1,
+  "plugin": {
+    "name": "iOS Helper",
+    "entryPoint": "ida_plugin_stub.py",
+    "categories": [
+      "decompilation"
+    ],
+    "idaVersions": ">=9.0",
+    "version": "1.0.0"
+  }
+}
