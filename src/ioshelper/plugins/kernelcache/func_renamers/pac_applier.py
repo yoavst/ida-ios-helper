@@ -175,6 +175,9 @@ class MostSpecificAncestorHelper:
         self._lvar_to_calls.setdefault(lvar, []).append(call)
 
     def update_field(self, cls_type: tinfo_t, offset: int, predicate: Sequence[tinfo_t], call: Call):
+        if cls_type.is_vftable():
+            return
+
         minimized = self._minimize(predicate)
         key = (cls_type, offset)
         if key in self._fields:
