@@ -66,7 +66,11 @@ def search_field_access(
 
     for result in results:
         if (show_read and result.type == AccessType.READ) or (show_write and result.type == AccessType.WRITE):
-            print(result.compact_str())
+            # noinspection PyBroadException
+            try:
+                print(result.compact_str())
+            except:  # noqa: E722
+                print(f"result: {result.ea}")
 
 
 def _collect_field_accesses(segment: Segment) -> "Iterator[FieldAccess]":
