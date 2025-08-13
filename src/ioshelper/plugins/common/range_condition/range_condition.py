@@ -22,6 +22,12 @@ class RangeConditionTreeVisitor(ida_hexrays.ctree_visitor_t):
             return 0
 
         lhs, rhs = e.x, e.y
+        if e.x.op == ida_hexrays.cot_cast:
+            is_cast = True
+            lhs = e.x.x
+        else:
+            is_cast = False
+
         if (
             rhs.op != ida_hexrays.cot_num
             or lhs.op not in (ida_hexrays.cot_add, ida_hexrays.cot_sub)
@@ -30,8 +36,8 @@ class RangeConditionTreeVisitor(ida_hexrays.ctree_visitor_t):
         ):
             return 0
 
-        # Get modulus for the expression size
-        expr_size_in_bytes = lhs.type.get_size()
+        # Get modulus for the expression size - use e.x instead of lhs to handle casts correctly
+        expr_size_in_bytes = e.x.type.get_size()
         if expr_size_in_bytes not in (1, 2, 4, 8):
             print(f"[Warning] Unsupported expression size {expr_size_in_bytes} for {e.dstr()}")
             return 0
@@ -45,18 +51,22 @@ class RangeConditionTreeVisitor(ida_hexrays.ctree_visitor_t):
         if lhs.op == ida_hexrays.cot_add:
             lhs_const = mod - lhs_const
 
+        x = cexpr.from_cast(lhs.x, e.x.type) if is_cast else lhs.x
+
         replacement_expr = (
             create_range_condition_greater_than
             if e.op in (ida_hexrays.cot_ugt, ida_hexrays.cot_uge)
             else create_range_condition_less_than
-        )(e, lhs_const, rhs_const, mod, lhs.x, self.func)
+        )(e, lhs_const, rhs_const, mod, x, lhs.y.ea, self.func)
         e.swap(replacement_expr)
 
         self.prune_now()
         return 0
 
 
-def create_range_condition_less_than(e: cexpr_t, lhs: int, rhs: int, mod: int, x: cexpr_t, func: cfunc_t) -> cexpr_t:
+def create_range_condition_less_than(
+    e: cexpr_t, lhs: int, rhs: int, mod: int, x: cexpr_t, lhs_ea: int, func: cfunc_t
+) -> cexpr_t:
     """Create a range condition for the expression `x - lhs < rhs`."""
 
     lhs_plus_rhs = lhs + rhs
@@ -70,7 +80,7 @@ def create_range_condition_less_than(e: cexpr_t, lhs: int, rhs: int, mod: int, x
     # Notice that the conditions are the same, but it is either && or || depending on whether lhs + rhs < mod or not.
 
     op: Literal["&&", "||"] = "||" if lhs_plus_rhs >= mod else "&&"
-    lhs_plus_rhs_expr = cexpr.from_const_value(lhs_plus_rhs_mod_n, func, e.x.y.ea)
+    lhs_plus_rhs_expr = cexpr.from_const_value(lhs_plus_rhs_mod_n, func, lhs_ea)
     lhs_expr = cexpr.from_const_value(lhs, func, e.y.ea)
     return _bin_op(
         _bin_op(lhs_expr, "<", cexpr_t(x), e.ea),
@@ -80,13 +90,15 @@ def create_range_condition_less_than(e: cexpr_t, lhs: int, rhs: int, mod: int, x
     )
 
 
-def create_range_condition_greater_than(e: cexpr_t, lhs: int, rhs: int, mod: int, x: cexpr_t, func: cfunc_t) -> cexpr_t:
+def create_range_condition_greater_than(
+    e: cexpr_t, lhs: int, rhs: int, mod: int, x: cexpr_t, lhs_ea: int, func: cfunc_t
+) -> cexpr_t:
     """Create a range condition for the expression `x - lhs > rhs`."""
 
     lhs_plus_rhs = lhs + rhs
     lhs_plus_rhs_mod_n = lhs_plus_rhs % mod
 
-    lhs_plus_rhs_expr = cexpr.from_const_value(lhs_plus_rhs_mod_n, func, e.x.y.ea)
+    lhs_plus_rhs_expr = cexpr.from_const_value(lhs_plus_rhs_mod_n, func, lhs_ea)
     lhs_expr = cexpr.from_const_value(lhs, func, e.y.ea)
     op: Literal["<", "<="] = "<" if e.op == ida_hexrays.cot_ugt else "<="
 

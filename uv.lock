@@ -16,7 +16,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "idahelper", specifier = "==1.0.8" }]
+requires-dist = [{ name = "idahelper", specifier = "==1.0.9" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -26,11 +26,11 @@ dev = [
 
 [[package]]
 name = "idahelper"
-version = "1.0.8"
+version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a9/5f/f75c2dbd8ad25392a1f9cd163970ef83d0b15ed057898ee82a8edee337ab/idahelper-1.0.8.tar.gz", hash = "sha256:0311d71b10eaf83e3ab1b50d073c726371ebdb5e93348e7b67b056408b3b963f", size = 25770, upload-time = "2025-07-15T16:36:56.825Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/77/10ca70477d94434918b9eac4e9f7809254b7a822cd6841d307b88eaaa902/idahelper-1.0.9.tar.gz", hash = "sha256:f3e4f09fe044f8e290b66ac5119c5bb3b553108dc42126f5aeab212bbcd798eb", size = 25877, upload-time = "2025-08-13T08:44:55.96Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4b/ae/a219bdce1215563d2b4ae6cc9fc7f8755c2caa338df671bf4f55958290fc/idahelper-1.0.8-py3-none-any.whl", hash = "sha256:25b2ba7320b189a20e1eb2c4d3a7a57949fbf44538218f85a09601b47693a66d", size = 30386, upload-time = "2025-07-15T16:36:55.371Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/9e/51f43e732cb2bf55f45c0df76f61448c87f1f5b971c6569465e99c44216c/idahelper-1.0.9-py3-none-any.whl", hash = "sha256:77a26ca603bf4ac7ec4d46d92d51888cbfa87e864ca5cc0ee97b693cad350bd4", size = 30511, upload-time = "2025-08-13T08:44:54.653Z" },
 ]
 
 [[package]]
