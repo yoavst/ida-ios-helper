@@ -15,7 +15,7 @@ classifiers = [
 
 requires-python = ">=3.10"
 dependencies = [
-    "idahelper==1.0.9",
+    "idahelper==1.0.10",
 ]
 
 [project.urls]

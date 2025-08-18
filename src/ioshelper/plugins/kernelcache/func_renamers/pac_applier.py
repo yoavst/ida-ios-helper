@@ -8,7 +8,7 @@ from ida_typeinf import tinfo_t
 from idahelper import tif
 from idahelper.ast import cfunc
 from idahelper.ast.lvars import VariableModification
-from idahelper.pac import local as pac
+from idahelper.pac import client as pac
 
 from ioshelper.base.utils import CustomDict, CustomSet
 
