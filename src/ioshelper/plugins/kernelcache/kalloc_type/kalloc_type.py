@@ -1,7 +1,8 @@
-__all__ = ["apply_kalloc_types"]
+__all__ = ["apply_kalloc_types", "create_struct_from_kalloc_type"]
 
+import ida_kernwin
 from ida_typeinf import tinfo_t
-from idahelper import memory, segments, tif
+from idahelper import memory, segments, tif, widgets
 
 KALLOC_TYPE_DEFINITIONS = """
 struct zone_view {
@@ -192,6 +193,66 @@ def set_kalloc_var_for_segment(segment: segments.Segment, kalloc_type_var_view_t
         if not memory.set_name(kty_ea, new_name, retry=True, retry_count=50):
             print(f"[Error] failed to rename kalloc_type_view on {kty_ea:X} to {new_name!r}")
             continue
+
+
+def create_struct_from_kalloc_type(ctx: ida_kernwin.action_ctx_base_t):
+    kty_ea: int = ctx.cur_ea
+    cur_type = tif.from_ea(kty_ea)
+    if cur_type is None or cur_type.get_type_name() != "kalloc_type_view":
+        print(f"[Error] You must be on a kalloc_type_view to create the struct. Current addr: {kty_ea:X}")
+        return
+
+    signature_ea = memory.qword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_SIGNATURE)
+    signature = memory.str_from_ea(signature_ea)
+    if signature is None:
+        print(f"[Error] failed to read signature for {kty_ea:X}")
+        return
+
+    site_name_ea = memory.qword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_NAME)
+    site_name = memory.str_from_ea(site_name_ea)
+    class_name = None
+    if site_name is None:
+        print(f"[Error] failed to read name for kalloc_type_view on {kty_ea:X}")
+    elif not site_name.startswith("site."):
+        print(f"[Error] invalid site name on {kty_ea:X}, is: {site_name!r}")
+    else:
+        class_name = site_name[5:]
+        if class_name.startswith("struct "):
+            class_name = class_name[7:]
+        if class_name.startswith("typeof(") or class_name == "T":
+            # Clang generates them using macro, so it might lead to some eccentric specific ones...
+            class_name = None
+
+    chosen_name = widgets.show_string_input("Choose class name", class_name or site_name)
+    if chosen_name is None:
+        return
+    chosen_name = chosen_name.strip()
+    if not chosen_name:
+        return
+
+    create_struct_from_name_signature(class_name, signature)
+
+
+def create_struct_from_name_signature(class_name: str, signature: str) -> bool:
+    existing_type = tif.from_struct_name(class_name)
+    if existing_type is not None:
+        print(f"[Error] struct for {class_name} already exists")
+        return False
+
+    struct_definition = f"struct {class_name} {{\n"
+    for i, t in enumerate(signature):
+        t = int(t)
+        field_name = f"field_{i * 8:#04x}"
+        type_def = "void*" if t & 1 != 0 else "__int64"
+        struct_definition += f"    {type_def} {field_name};\n"
+    struct_definition += "};"
+
+    if not tif.create_from_c_decl(struct_definition):
+        print(f"[Error] failed to create struct for {class_name}")
+        return False
+    print(f"[Info] Created struct for {class_name}")
+
+    return True
 
 
 def escape_name(site_name: str) -> str:

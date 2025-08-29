@@ -13,6 +13,7 @@ A plugin for IDA Pro 9.0+ to help with iOS code analysis.
       Obj-C instance methods.
     - Name globals from `OSSymbol::fromConst*` calls, locals from `get/setProperty` calls, ...
     - Rename and type all global kalloc_type_view. Use their signature to mark fields as pointers for the actual types.
+    - Create a struct from a kalloc_type_view.
 - Objective-C
     - Hide memory management
       functions - `objc_retain`, `objc_release`, `objc_autorelease`, `objc_retainAutoreleasedReturnValue`.

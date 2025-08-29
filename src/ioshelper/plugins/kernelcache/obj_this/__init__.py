@@ -3,13 +3,21 @@ __all__ = ["this_arg_fixer_component"]
 import ida_kernwin
 import idaapi
 from ida_kernwin import action_handler_t
-from idahelper import widgets
+from idahelper import functions, widgets
 
 from ioshelper.base.reloadable_plugin import UIAction, UIActionsComponent
 
 from .obj_this import update_argument
 
 ACTION_ID = "ioshelper:this_arg_fixer"
+
+
+def dynamic_menu_add(widget, _popup) -> bool:
+    if idaapi.get_widget_type(widget) not in (idaapi.BWN_DISASM, idaapi.BWN_PSEUDOCODE):
+        return False
+    current_ea = idaapi.get_screen_ea()
+    return functions.is_in_function(current_ea)
+
 
 this_arg_fixer_component = UIActionsComponent.factory(
     "Convert first argument to this/self",
@@ -22,8 +30,7 @@ this_arg_fixer_component = UIActionsComponent.factory(
                 ThisArgFixerAction(),
                 "Ctrl+T",
             ),
-            dynamic_menu_add=lambda widget, popup: idaapi.get_widget_type(widget) == idaapi.BWN_DISASM
-            or idaapi.get_widget_type(widget) == idaapi.BWN_PSEUDOCODE,
+            dynamic_menu_add=dynamic_menu_add,
         )
     ],
 )

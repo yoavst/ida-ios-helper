@@ -18,7 +18,7 @@ from .plugins.kernelcache.func_renamers import (
     mass_func_renamer_component,
 )
 from .plugins.kernelcache.generic_calls_fix import generic_calls_fix_component
-from .plugins.kernelcache.kalloc_type import apply_kalloc_type_component
+from .plugins.kernelcache.kalloc_type import apply_kalloc_type_component, create_type_from_kalloc_component
 from .plugins.kernelcache.obj_this import this_arg_fixer_component
 from .plugins.objc.objc_ref import objc_xrefs_component
 from .plugins.objc.objc_refcnt import component as objc_refcount_component
@@ -102,6 +102,7 @@ def kernel_cache_plugins() -> list[ComponentFactory]:
         mass_func_renamer_component,
         apply_kalloc_type_component,
         apply_pac_component,
+        create_type_from_kalloc_component,
     ]
 
 
