@@ -4,6 +4,8 @@ __all__ = [
     "apply_pac_component",
     "local_func_renamer_component",
     "mass_func_renamer_component",
+    "rename_function_by_arg",
+    "rename_function_by_callback",
 ]
 
 import ida_kernwin
@@ -13,6 +15,7 @@ from idahelper import widgets
 
 from ioshelper.base.reloadable_plugin import HexraysHookComponent, UIAction, UIActionsComponent
 
+from .external import rename_function_by_arg, rename_function_by_callback
 from .func_renamers import apply_global_rename, hooks
 from .pac_applier import apply_pac
 

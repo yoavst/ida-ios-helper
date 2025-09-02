@@ -272,6 +272,22 @@ Use `Ctrl+4` inside an Objective-C method to list xrefs to its selector.
 
 ![Jump to selector](res/jump_to_selector_xrefs.png)
 
+## Rename function by argument of logging function
+
+Given that the code contains calls like:
+
+```c
+log("func_name", ....);
+```
+
+You could use `rename_function_by_arg` to mass rename all functions that contain such calls.
+
+```python
+rename_function_by_arg(func_name="log", arg_index=0, prefix="_", force_name_change=False)
+```
+
+This will run on all the functions that call the log function, and rename them to the first argument of the call.
+
 ## Call the plugin from python
 
 ```python

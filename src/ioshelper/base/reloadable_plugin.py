@@ -113,7 +113,7 @@ class PluginCore:
         self._startup_hooks.unhook()
 
         if not ida_hexrays.init_hexrays_plugin():
-            print(f"[{self.name}] failed to load hexrays plugin, aborting load.")
+            print(f"[{self.name}] failed to load hex-rays plugin, aborting load.")
             return
 
         print(f"[{self.name}] loading plugin")
@@ -252,7 +252,7 @@ class ReloadablePlugin(abc.ABC, plugin_t):
         self.core = self._plugin_core_factory(defer_load=False, should_mount=was_mounted)
 
     def should_reload_pkg(self, module_name: str) -> bool:
-        """Should we reload this module on reloading the plugin"""
+        """Should we reload this module on reloading the plugin?"""
         if module_name.startswith(self._base_package_name):
             return True
         return any(module_name.startswith(prefix) for prefix in self.extra_packages_to_reload)

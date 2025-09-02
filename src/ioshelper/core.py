@@ -6,6 +6,7 @@ from idahelper import file_format, widgets
 
 from .base.reloadable_plugin import ComponentFactory, PluginCore, UIAction, UIActionsComponent
 from .plugins.common.clang_blocks import clang_block_args_analyzer_component, clang_block_optimizer_component
+from .plugins.common.globals import globals_component
 from .plugins.common.jump_to_string import jump_to_string_component
 from .plugins.common.outline import mark_outline_functions_component
 from .plugins.common.range_condition import range_condition_optimizer_component
@@ -82,6 +83,7 @@ def shared_modules() -> list[ComponentFactory]:
         range_condition_optimizer_component,
         mark_outline_functions_component,
         show_segment_xrefs_component,
+        globals_component,
     ]
 
 

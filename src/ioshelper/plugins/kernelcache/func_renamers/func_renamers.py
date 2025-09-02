@@ -8,6 +8,7 @@ from idahelper.microcode import mba
 
 from .handlers import GLOBAL_HANDLERS, LOCAL_HANDLERS
 from .renamer import (
+    FuncHandler,
     Modifications,
 )
 from .visitor import FuncXref, XrefsMatcher, process_function_calls
@@ -45,29 +46,33 @@ def apply_global_rename():
     before = time.time()
     for i, handler in enumerate(GLOBAL_HANDLERS):
         print(f"Applying global rename {i + 1}/{len(GLOBAL_HANDLERS)}: {handler.name}")
-        source_xref = handler.get_source_xref()
-        if source_xref is None or not isinstance(source_xref, FuncXref):
-            print(f"Function {handler.name} has no global source xref, skipping")
-            continue
-        func_ea = source_xref.ea
-
-        xrefs_in_funcs = xrefs.func_xrefs_to(func_ea)
-        if not xrefs_in_funcs:
-            print(f"Function {handler.name} not called")
-            continue
-
-        print(f"Found {len(xrefs_in_funcs)} functions that call {handler.name}:")
-        for j, xref_func_ea in enumerate(xrefs_in_funcs):
-            with Modifications(xref_func_ea, func_lvars=None) as modifications:
-                print(f"  {j + 1}/{len(xrefs_in_funcs)}: {xref_func_ea:#x}")
-                process_function_calls(mba.from_func(xref_func_ea), get_global_xref_matcher(), modifications)
+        apply_specific_global_rename(handler, get_global_xref_matcher())
     after = time.time()
     print(f"Completed! Took {int(after - before)} seconds")
 
 
+def apply_specific_global_rename(handler: FuncHandler, xrefs_matcher: XrefsMatcher):
+    source_xref = handler.get_source_xref()
+    if source_xref is None or not isinstance(source_xref, FuncXref):
+        print(f"Function {handler.name} has no global source xref, skipping")
+        return
+    func_ea = source_xref.ea
+
+    xrefs_in_funcs = xrefs.func_xrefs_to(func_ea)
+    if not xrefs_in_funcs:
+        print(f"Function {handler.name} not called")
+        return
+
+    print(f"Found {len(xrefs_in_funcs)} functions that call {handler.name}:")
+    for j, xref_func_ea in enumerate(xrefs_in_funcs):
+        with Modifications(xref_func_ea, func_lvars=None) as modifications:
+            print(f"  {j + 1}/{len(xrefs_in_funcs)}: {xref_func_ea:#x}")
+            process_function_calls(mba.from_func(xref_func_ea), xrefs_matcher, modifications)
+
+
 class LocalRenameHooks(Hexrays_Hooks):
     def maturity(self, cfunc: cfunc_t, new_maturity: int) -> int:
-        # For some reason this maturity level is required for typing to be applied for local variables.
+        # For some reason, this maturity level is required for typing to be applied for local variables.
         if new_maturity != ida_hexrays.CMAT_CASTED:
             return 0
 
