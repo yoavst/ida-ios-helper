@@ -72,18 +72,18 @@ def create_range_condition_less_than(
     lhs_plus_rhs = lhs + rhs
     lhs_plus_rhs_mod_n = lhs_plus_rhs % mod
     # if lhs + rhs < mod, we can use a single range condition
-    #   x - lhs < rhs  => x ∈ [lhs, lhs + rhs) ==> lhs < x && x < lhs + rhs
-    #   x - lhs <= rhs => x ∈ [lhs, lhs + rhs] ==> lhs < x && x <= lhs + rhs
+    #   x - lhs < rhs  => x ∈ [lhs, lhs + rhs) ==> lhs <= x && x < lhs + rhs
+    #   x - lhs <= rhs => x ∈ [lhs, lhs + rhs] ==> lhs <= x && x <= lhs + rhs
     # if lhs + rhs >= mod, we need to use two range conditions
-    #   x - lhs < rhs  => x ∈ [lhs, mod) U x ∈ [0, (lhs+rhs) mod n) ==> lhs < x || x < (lhs + rhs) mod n
-    #   x - lhs <= rhs => x ∈ [lhs, mod) U x ∈ [0, (lhs+rhs) mod n] ==> lhs < x || x <= (lhs + rhs) mod n
+    #   x - lhs < rhs  => x ∈ [lhs, mod) U x ∈ [0, (lhs+rhs) mod n) ==> lhs <= x || x < (lhs + rhs) mod n
+    #   x - lhs <= rhs => x ∈ [lhs, mod) U x ∈ [0, (lhs+rhs) mod n] ==> lhs <= x || x <= (lhs + rhs) mod n
     # Notice that the conditions are the same, but it is either && or || depending on whether lhs + rhs < mod or not.
 
     op: Literal["&&", "||"] = "||" if lhs_plus_rhs >= mod else "&&"
     lhs_plus_rhs_expr = cexpr.from_const_value(lhs_plus_rhs_mod_n, func, lhs_ea)
     lhs_expr = cexpr.from_const_value(lhs, func, e.y.ea)
     return _bin_op(
-        _bin_op(lhs_expr, "<", cexpr_t(x), e.ea),
+        _bin_op(lhs_expr, "<=", cexpr_t(x), e.ea),
         op,
         _bin_op(cexpr_t(x), IDA_OP_TO_MATH_OP[e.op], lhs_plus_rhs_expr, e.ea),
         e.ea,
@@ -104,12 +104,12 @@ def create_range_condition_greater_than(
 
     # if lhs + rhs < mod:
     #   x - lhs > rhs  => x ∈ (lhs + rhs, mod) U x ∈ [0, lhs) ==> lhs + rhs < x || x < lhs
-    #   x - lhs >= rhs => x ∈ [lhs + rhs, mod) U x ∈ [0, lhs] ==> lhs + rhs <= x || x < lhs
+    #   x - lhs >= rhs => x ∈ [lhs + rhs, mod) U x ∈ [0, lhs] ==> lhs + rhs <= x || x <= lhs
     if lhs_plus_rhs < mod:
         return _bin_op(
             _bin_op(lhs_plus_rhs_expr, op, cexpr_t(x), e.ea),
             "||",
-            _bin_op(cexpr_t(x), "<", lhs_expr, e.ea),
+            _bin_op(cexpr_t(x), op, lhs_expr, e.ea),
             e.ea,
         )
     else:
