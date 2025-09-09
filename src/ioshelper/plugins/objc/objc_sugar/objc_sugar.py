@@ -1,5 +1,6 @@
 __all__ = ["objc_selector_hexrays_hooks_t"]
 
+import itertools
 import re
 
 import ida_hexrays
@@ -17,13 +18,16 @@ from ida_lines import (
     tag_remove,
 )
 from ida_pro import strvec_t
-from idahelper import objc
+from idahelper import memory, objc
 from idahelper.ast import cexpr
 
 SELECTOR_MARKER = "!@#$sel$#@!"
 COMMA_COLORED = COLSTR(",", SCOLOR_SYMBOL)
 INSIGNIFICANT_LENGTH_FOR_LINE = 5
 MAX_LINE_SIZE = 120
+
+
+# COLOR_ON = 0x1, SCOLOR_ADDR = 0x28, SCOLOR_LOCNAME = 0x19, SCOLOR_SYMBOL = 0x9
 
 SEL_TOKEN_REGEX = re.compile(
     "(?P<prefix>"
@@ -39,10 +43,28 @@ SEL_TOKEN_REGEX = re.compile(
     + '"'
     + re.escape(COLOR_OFF + SCOLOR_LOCNAME)
 )
+
 """
 a regex for a possible selector in IDA's pseudocode, with support for the prefix ", "
 Its groups are: prefix, index, and selector.
 """
+
+SEL_TOKEN_REGEX_2 = re.compile(
+    "(?P<prefix>"
+    + re.escape(COMMA_COLORED + " ")
+    + r")?"
+    + re.escape(COLOR_ON + SCOLOR_ADDR)
+    + r"(?P<index>[0-9A-Fa-f]{16})"
+    + re.escape(COLOR_ON + SCOLOR_LOCNAME)
+    + r'"(?P<selector>[A-Za-z0-9_:]+)"'
+    + re.escape(COLOR_OFF + SCOLOR_LOCNAME)
+)
+"""
+another regex for a possible selector in IDA's pseudocode that I found in IDA 9.2, with support for the prefix ", "
+Its groups are: prefix, index, and selector.
+"""
+
+SEL_TOKEN_REGEXES = [SEL_TOKEN_REGEX, SEL_TOKEN_REGEX_2]
 
 # noinspection RegExpDuplicateCharacterInClass
 CLASS_TOKEN_REGEX = re.compile(
@@ -97,10 +119,13 @@ class objc_selector_hexrays_hooks_t(Hexrays_Hooks):
                     print("[Error]: Obj-C method call with less than 2 arguments:", call_expr.dstr())
                     continue
                 sel_arg: carg_t = arglist[1]
-                if sel_arg.op != ida_hexrays.cot_str:
+                if sel_arg.op == ida_hexrays.cot_str:
+                    selectors_to_remove[sel_arg.obj_id] = sel_arg.string
+                elif sel_arg.op == ida_hexrays.cot_obj and (sel := memory.str_from_ea(sel_arg.obj_ea)) is not None:
+                    selectors_to_remove[sel_arg.obj_id] = sel
+                else:
                     print("[Error]: Obj-C method call with non-string selector:", call_expr.dstr())
                     continue
-                selectors_to_remove[sel_arg.obj_id] = sel_arg.string
 
                 # 3. Check if the function is a class method
                 if objc.is_objc_static_method(call_func_name):
@@ -144,8 +169,11 @@ def modify_text(cfunc: cfunc_t, index_to_sel: dict[int, str], class_indices_to_r
 def modify_selectors(index_to_sel: dict[int, str], line: simpleline_t, prev_line: str):
     """Try to remove selectors from a line. Returns whether we should merge the line with the previous line"""
     should_merge = False
+    # Find all obj-c calls in the line
+    results_unsorted = itertools.chain(*[re.finditer(pattern, line.line) for pattern in SEL_TOKEN_REGEXES])
     # Reverse the results so indices will not change
-    for result in reversed(list(re.finditer(SEL_TOKEN_REGEX, line.line))):
+    results = sorted(results_unsorted, key=lambda m: m.start(), reverse=True)
+    for result in results:
         result: re.Match
         index = int(result.group("index"), 16)
         if index in index_to_sel:
