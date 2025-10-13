@@ -34,7 +34,7 @@ FUNCTIONS_SIGNATURES = {
     # Base runtime
     "_swift_allocObject": "id *__fastcall swift_allocObject(void *metadata, size_t requiredSize, size_t requiredAlignmentMask)",
     # Dispatch
-    "_$sSo17OS_dispatch_queueC8DispatchE5label3qos10attributes20autoreleaseFrequency6targetABSS_AC0D3QoSVAbCE10AttributesVAbCE011AutoreleaseI0OABSgtcfC": "__int64 __usercall OS_dispatch_queue_init_label_qos_attributes_autoreleaseFrequency_target__@<X0>(Swift::String label@<X0:X1>, _QWORD qos@<X2>, _QWORD attributes@<X3>, _QWORD frequency@<X4>, _QWORD target@<X5>)",
+    "_$sSo17OS_dispatch_queueC8DispatchE5label3qos10attributes20autoreleaseFrequency6targetABSS_AC0D3QoSVAbCE10AttributesVAbCE011AutoreleaseI0OABSgtcfC": "__int64 __fastcall OS_dispatch_queue_init_label_qos_attributes_autoreleaseFrequency_target__(Swift::String label, _QWORD qos, _QWORD attributes, _QWORD frequency, _QWORD target)",
     "_$sSo17OS_dispatch_queueC8DispatchE4sync7executexxyKXE_tKlF": "_QWORD *__usercall OS_dispatch_queue_sync_A__execute__@<X0>(_QWORD *__return_ptr a1@<X8>, void *dispatchQueue@<X20>, void *cb@<X0>, id params@<X1>, void *returnType@<x2>)",
     "_$sSo17OS_dispatch_queueC8DispatchE4sync5flags7executexAC0D13WorkItemFlagsV_xyKXEtKlF": "_QWORD *__usercall OS_dispatch_queue_sync_A_flags_execute__@<X0>(_QWORD *__return_ptr a1@<X8>, void *dispatchQueue@<X20>, int flags@<X0>, void *cb@<X1>, id params@<X2>, void *returnType@<x3>)",
     # Foundation.URL
