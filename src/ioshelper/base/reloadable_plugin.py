@@ -411,7 +411,7 @@ class HexraysHookComponent(Component):
 
 
 class StartupScriptComponent(Component):
-    def __init__(self, name: str, core: PluginCore, callbacks: list[Callable[[]]]):
+    def __init__(self, name: str, core: PluginCore, callbacks: list[Callable[[], None]]):
         super().__init__(name, core)
         self._callbacks = callbacks
 
@@ -430,5 +430,5 @@ class StartupScriptComponent(Component):
         pass
 
     @staticmethod
-    def factory(name: str, callbacks: list[Callable[[]]]) -> ComponentFactory:
+    def factory(name: str, callbacks: list[Callable[[], None]]) -> ComponentFactory:
         return lambda core: StartupScriptComponent(name, core, callbacks)
