@@ -25,6 +25,7 @@ from .plugins.objc.objc_ref import objc_xrefs_component
 from .plugins.objc.objc_refcnt import component as objc_refcount_component
 from .plugins.objc.objc_sugar import objc_sugar_component
 from .plugins.objc.oslog import component as oslog_component
+from .plugins.swift.swift_types import swift_types_component
 
 TOGGLE_ACTION_ID = "ioshelper:toggle"
 
@@ -92,6 +93,7 @@ def objc_plugins() -> list[ComponentFactory]:
         oslog_component,
         objc_xrefs_component,
         objc_sugar_component,
+        swift_types_component,
     ]
 
 
