@@ -1,5 +1,5 @@
 import idc
-from idahelper import tif, memory
+from idahelper import memory, tif
 
 DECLS = """
 typedef long long s64;
