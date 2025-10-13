@@ -26,6 +26,7 @@ ID_FUNCTIONS_TO_REPLACE_WITH_ARG: list[str | re.Pattern] = [
     "_objc_retainBlock",
     "objc_unsafeClaimAutoreleasedReturnValue",
     "objc_retainAutoreleasedReturnValue",
+    "_swift_bridgeObjectRetain",
 ]
 
 # Remove f(x) calls
@@ -37,6 +38,8 @@ VOID_FUNCTIONS_TO_REMOVE_WITH_SINGLE_ARG: list[str | re.Pattern] = [
     # CFoundation
     "_CFRelease",
     re.compile(r"_CFRelease_(\d+)"),
+    # swift
+    "_swift_bridgeObjectRelease",
 ]
 
 VOID_FUNCTION_TO_REMOVE_WITH_MULTIPLE_ARGS: list[str | re.Pattern] = [
