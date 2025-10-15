@@ -21,6 +21,9 @@ A plugin for IDA Pro 9.0+ to help with iOS code analysis.
     - collapse `__os_log_impl` calls.
     - Hide selectors and static classes from Objective-c calls.
     - When in Obj-C method, Ctrl+4 will show xrefs to the selector.
+- Swift
+    - Add swift types declarations to the IDA type system.
+    - Detect stack swift string and add a syntactic sugar for them.
 - Common
     - Remove `__break` calls.
     - collapse blocks initializers and detect `__block` variables (use Alt+Shift+S to trigger detection).
