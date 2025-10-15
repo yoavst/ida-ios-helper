@@ -284,6 +284,5 @@ class SwiftStringVisitor(ctree_parentee_t):
         new_comparison = cexpr.from_binary_op(
             cexpr_t(expr.x.x), call, ida_hexrays.cot_eq, tif.from_c_type("bool"), parent.ea
         )
-        print(new_comparison.dstr(), " <---", parent.dstr())
         # FIXME why swap cause an internal error
         parent.swap(new_comparison)

@@ -1,5 +1,6 @@
 import ida_idp
 import ida_typeinf
+import idaapi
 import idc
 from idahelper import memory, tif
 
@@ -104,81 +105,91 @@ X20 = _reg("X20")
 _REG_ORDER = [X20, X0, X1, X2, X3, X4, X5, X6, X7]
 
 
-class swift_class_cc_t(ida_typeinf.custom_callcnv_t):
-    def __init__(self):
-        super().__init__()
-        self.name = "__swiftClassCall"
-        self.flags = 0
-        # Not a vararg CC; no special ABI bits required for our purposes.
-        self.abibits = 0
+if idaapi.IDA_SDK_VERSION >= 920:
 
-    # Sanity check
-    def validate_func(self, fti: ida_typeinf.func_type_data_t):
-        # Accept both fixed & vararg (Swift thunks are fixed; being permissive is fine)
-        return True
+    class swift_class_cc_t(ida_typeinf.custom_callcnv_t):
+        def __init__(self):
+            super().__init__()
+            self.name = "__swiftClassCall"
+            self.flags = 0
+            # Not a vararg CC; no special ABI bits required for our purposes.
+            self.abibits = 0
 
-    # Return in X0 (standard AArch64)
-    def calc_retloc(self, fti: ida_typeinf.func_type_data_t):
-        if not fti.rettype.is_void():
-            if fti.rettype.get_size() == 8:
-                fti.retloc.set_reg1(X0)
-            elif fti.rettype.get_size() == 16:
-                fti.retloc.set_reg2(X0, X1)
-        return True
+        # Sanity check
+        def validate_func(self, fti: ida_typeinf.func_type_data_t):
+            # Accept both fixed & vararg (Swift thunks are fixed; being permissive is fine)
+            return True
 
-    # Place arg0 in X20, then X0..X7, then stack (8-byte slots)
-    def calc_arglocs(self, fti: ida_typeinf.func_type_data_t):
-        # __int64 __swiftClassCall URL_appendingPathComponent____(void *, Swift::String);
-        stk_off = 0
-        i = 0
-        for fa in fti:
-            if i < len(_REG_ORDER):
-                if fa.type.get_size() == 8:
-                    fa.argloc.set_reg1(_REG_ORDER[i])
-                elif fa.type.get_size() == 16:
-                    fa.argloc.set_reg2(_REG_ORDER[i], _REG_ORDER[i + 1])
-                    i += 1
-            else:
-                # 8-byte aligned stack slots are a reasonable default on AArch64
-                fa.argloc.set_stkoff(stk_off)
-                stk_off += 8
-            i += 1
-        # optional: remember stack usage if you want
-        self.stkargs = stk_off
-        return self.calc_retloc(fti)
+        # Return in X0 (standard AArch64)
+        def calc_retloc(self, fti: ida_typeinf.func_type_data_t):
+            if not fti.rettype.is_void():
+                if fti.rettype.get_size() == 8:
+                    fti.retloc.set_reg1(X0)
+                elif fti.rettype.get_size() == 16:
+                    fti.retloc.set_reg2(X0, X1)
+            return True
 
-    # Variadic: same placement logic (we don't add hidden regs)
-    def calc_varglocs(self, fti, regs, stkargs, nfixed):
-        return self.calc_arglocs(fti)
+        # Place arg0 in X20, then X0..X7, then stack (8-byte slots)
+        def calc_arglocs(self, fti: ida_typeinf.func_type_data_t):
+            # __int64 __swiftClassCall URL_appendingPathComponent____(void *, Swift::String);
+            stk_off = 0
+            i = 0
+            for fa in fti:
+                if i < len(_REG_ORDER):
+                    if fa.type.get_size() == 8:
+                        fa.argloc.set_reg1(_REG_ORDER[i])
+                    elif fa.type.get_size() == 16:
+                        fa.argloc.set_reg2(_REG_ORDER[i], _REG_ORDER[i + 1])
+                        i += 1
+                else:
+                    # 8-byte aligned stack slots are a reasonable default on AArch64
+                    fa.argloc.set_stkoff(stk_off)
+                    stk_off += 8
+                i += 1
+            # optional: remember stack usage if you want
+            self.stkargs = stk_off
+            return self.calc_retloc(fti)
 
-    # Help decompiler infer this CC: list the GP regs typically used for args
-    def get_cc_regs(self, callregs: "ida_typeinf.ccregs_t"):
-        callregs.nregs = len(_REG_ORDER)
-        for r in _REG_ORDER:
-            callregs.gpregs.push_back(r)
-        return True
+        # Variadic: same placement logic (we don't add hidden regs)
+        def calc_varglocs(self, fti, regs, stkargs, nfixed):
+            return self.calc_arglocs(fti)
 
-    # No special stack-area requirements
-    def get_stkarg_area_info(self, stkarg_area_info):
-        return True
+        # Help decompiler infer this CC: list the GP regs typically used for args
+        def get_cc_regs(self, callregs: "ida_typeinf.ccregs_t"):
+            callregs.nregs = len(_REG_ORDER)
+            for r in _REG_ORDER:
+                callregs.gpregs.push_back(r)
+            return True
 
-    # No stack purge semantics
-    def calc_purged_bytes(self, fti, call_ea):
-        return 0
+        # No special stack-area requirements
+        def get_stkarg_area_info(self, stkarg_area_info):
+            return True
 
-    # Use default AArch64-style decoration (or none). UNKNOWN avoids x86 mangling.
-    def decorate_name(self, name, should_decorate, cc, ftype):
-        return ida_typeinf.gen_decorate_name(name, should_decorate, ida_typeinf.CM_CC_UNKNOWN, ftype)
+        # No stack purge semantics
+        def calc_purged_bytes(self, fti, call_ea):
+            return 0
+
+        # Use default AArch64-style decoration (or none). UNKNOWN avoids x86 mangling.
+        def decorate_name(self, name, should_decorate, cc, ftype):
+            return ida_typeinf.gen_decorate_name(name, should_decorate, ida_typeinf.CM_CC_UNKNOWN, ftype)
+
+    def register_calling_convention():
+        ccid = ida_typeinf.register_custom_callcnv(swift_class_cc_t())
+        if ccid != ida_typeinf.CM_CC_INVALID:
+            print(f"[swift-types] Installed __swiftClassCall (id=0x{ccid:x})")
+        else:
+            print("[swift-types] Failed registering __swiftClassCall")
+
+else:
+
+    def register_calling_convention():
+        print("[swift-types] IDA version does not support custom calling conventions. Require IDA 9.2 or later.")
 
 
 def fix_swift_types() -> None:
     tif.create_from_c_decl(DECLS)
 
-    ccid = ida_typeinf.register_custom_callcnv(swift_class_cc_t())
-    if ccid != ida_typeinf.CM_CC_INVALID:
-        print(f"[swift-types] Installed __swiftClassCall (id=0x{ccid:x})")
-    else:
-        print("[swift-types] Failed registering __swiftClassCall")
+    register_calling_convention()
 
     for name, sig in FUNCTIONS_SIGNATURES.items():
         if (ea := memory.ea_from_name(name)) is not None:
