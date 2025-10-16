@@ -56,11 +56,15 @@ def _decode_string_e(bits_val: int, obj_addr: int) -> str:
         return data.decode("latin-1", errors="replace")
 
 
-def decode(bits_val: int, obj_val: int) -> str | None:
+def decode(bits_val: int, obj_val: int, escape: bool = True) -> str | None:
     """Decode a Swift::String from the given countAndFlagsBits and _object values"""
     s = None
     if ((obj_val >> 60) & 0xF) == 0xE:
         s = _decode_string_e(bits_val, obj_val)
     if not s:
         s = _decode_string_d(obj_val)
+
+    if escape and s:
+        s = s.encode("unicode_escape").decode("utf-8")
+
     return s or None
