@@ -62,6 +62,9 @@ FUNCTIONS_SIGNATURES = {
     "___swift_allocate_value_buffer": "void *__fastcall __swift_allocate_value_buffer(void *typeInfo, void **pObject)",
     "___swift_project_value_buffer": "__int64 __fastcall __swift_project_value_buffer(void *typeInfo, void *object)",
     # String operations
+    "_$sSS6appendyySSF": "Swift::Void __swiftClassCall String_append____(id, Swift::String);",
+    "_$ss11_StringGutsV4growyySiF": "Swift::Void __swiftClassCall _StringGuts_grow____(id, Swift::Int);",
+    "_$ss23CustomStringConvertibleP11descriptionSSvgTj": "Swift::String __swiftClassCall dispatch_thunk_of_CustomStringConvertible_description_getter(id obj, id typeMetadata, id protocolWitness);",
     "_$ss27_stringCompareWithSmolCheck__9expectingSbs11_StringGutsV_ADs01_G16ComparisonResultOtF": "__int64 __fastcall _stringCompareWithSmolCheck_____expecting__(Swift::String, Swift::String, _QWORD)",
     "_$sSS9hasPrefixySbSSF": "Swift::Bool __swiftcall String_hasPrefix____(Swift::String, Swift::String)",
     "_$sSS12ProxymanCoreE5toSHASSSgyF": "Swift::String_optional __swiftcall String_toSHA__(Swift::String)",
