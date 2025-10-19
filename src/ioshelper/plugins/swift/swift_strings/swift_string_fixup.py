@@ -216,7 +216,7 @@ class SwiftStringVisitor(ctree_parentee_t):
 
         # Decode the string
         s = decode_swift_string(bits_val, obj_val)
-        if not s:
+        if s is None:
             return
 
         # Build a helper-call that returns Swift::String from a C string

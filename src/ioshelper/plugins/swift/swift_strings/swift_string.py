@@ -58,13 +58,19 @@ def _decode_string_e(bits_val: int, obj_addr: int) -> str:
 
 def decode(bits_val: int, obj_val: int, escape: bool = True) -> str | None:
     """Decode a Swift::String from the given countAndFlagsBits and _object values"""
-    s = None
-    if ((obj_val >> 60) & 0xF) == 0xE:
-        s = _decode_string_e(bits_val, obj_val)
-    if not s:
+
+    string_type_d = ((bits_val >> 60) & 0xF) == 0xD
+    string_type_e = ((obj_val >> 60) & 0xF) == 0xE
+
+    if string_type_d:
         s = _decode_string_d(obj_val)
+    elif string_type_e:
+        s = _decode_string_e(bits_val, obj_val)
+    else:
+        print(f"[swift-string] Got bad string: {bits_val:x} {obj_val:x}")
+        return None
 
     if escape and s:
         s = s.encode("unicode_escape").decode("utf-8")
 
-    return s or None
+    return s
