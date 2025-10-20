@@ -38,12 +38,12 @@ FUNCTIONS_SIGNATURES = {
     "_swift_allocObject": "id *__fastcall swift_allocObject(void *metadata, size_t requiredSize, size_t requiredAlignmentMask)",
     # Dispatch
     "_$sSo17OS_dispatch_queueC8DispatchE5label3qos10attributes20autoreleaseFrequency6targetABSS_AC0D3QoSVAbCE10AttributesVAbCE011AutoreleaseI0OABSgtcfC": "__int64 __fastcall OS_dispatch_queue_init_label_qos_attributes_autoreleaseFrequency_target__(Swift::String label, _QWORD qos, _QWORD attributes, _QWORD frequency, _QWORD target)",
-    "_$sSo17OS_dispatch_queueC8DispatchE4sync7executexxyKXE_tKlF": "_QWORD *__usercall OS_dispatch_queue_sync_A__execute__@<X0>(_QWORD *__return_ptr a1@<X8>, void *dispatchQueue@<X20>, void *cb@<X0>, id params@<X1>, void *returnType@<x2>)",
-    "_$sSo17OS_dispatch_queueC8DispatchE4sync5flags7executexAC0D13WorkItemFlagsV_xyKXEtKlF": "_QWORD *__usercall OS_dispatch_queue_sync_A_flags_execute__@<X0>(_QWORD *__return_ptr a1@<X8>, void *dispatchQueue@<X20>, int flags@<X0>, void *cb@<X1>, id params@<X2>, void *returnType@<x3>)",
+    "_$sSo17OS_dispatch_queueC8DispatchE4sync7executexxyKXE_tKlF": "_QWORD *__swiftClassCall OS_dispatch_queue_sync_A__execute__(_QWORD *__return_ptr, void *dispatchQueue, void *cb, id params, void *returnType)",
+    "_$sSo17OS_dispatch_queueC8DispatchE4sync5flags7executexAC0D13WorkItemFlagsV_xyKXEtKlF": "_QWORD *__swiftClassCall OS_dispatch_queue_sync_A_flags_execute__(_QWORD *__return_ptr, void *dispatchQueue, int flags, void *cb, id params, void *returnType)",
     # Foundation.URL
     "_$s10Foundation3URLV6stringACSgSSh_tcfC": "void __swiftcall URL_init_string__(__int64 *__return_ptr, Swift::String url)",
     "_$s10Foundation3URLV4pathSSvg": "Swift::String __swiftClassCall URL_path_getter(void *self)",
-    "_$s10Foundation3URLV22appendingPathComponentyACSSF": "__int64 __usercall URL_appendingPathComponent____@<X0>(void *@<X20>, Swift::String@<X0:X1>)",
+    "_$s10Foundation3URLV22appendingPathComponentyACSSF": "__int64 __swiftClassCall URL_appendingPathComponent____(void *self, Swift::String component)",
     # print()
     "_$ss5print_9separator10terminatoryypd_S2StF": "void __fastcall print___separator_terminator__(Swift_ArrayAny *, Swift::String, Swift::String)",
     "_$ss10debugPrint_9separator10terminatoryypd_S2StFfA0_": "Swift::String default_argument_1_of_debugPrint___separator_terminator__(void)",
@@ -79,7 +79,7 @@ FUNCTIONS_SIGNATURES = {
     "_$ss26DefaultStringInterpolationV15literalCapacity18interpolationCountABSi_SitcfC": "Swift::String __swiftcall __spoils<X8> DefaultStringInterpolation_init_literalCapacity_interpolationCount__(_QWORD, _QWORD)",
     "_$sSS19stringInterpolationSSs013DefaultStringB0V_tcfC": "Swift::String __fastcall String_init_stringInterpolation__(Swift::String)",
     # Dictionary operations
-    "_$sSDyq_Sgxcig": "_QWORD *__usercall Dictionary_subscript_getter@<X0>(_QWORD *__return_ptr a1@<X8>, id object, Swift::String key)",
+    "_$sSDyq_Sgxcig": "_QWORD *__swiftClassCall Dictionary_subscript_getter(_QWORD *__return_ptr a1, id object, Swift::String key)",
 }
 
 
@@ -102,10 +102,15 @@ X4 = _reg("X4")
 X5 = _reg("X5")
 X6 = _reg("X6")
 X7 = _reg("X7")
+X8 = _reg("X8")
 X20 = _reg("X20")
 
 # first arg in X20, then normal ABI
 _REG_ORDER = [X20, X0, X1, X2, X3, X4, X5, X6, X7]
+
+FAH_HIDDEN = 0x0001
+FAH_RETLOC = 0x0002  # “return location” / hidden sret pointer
+FAH_VARARG = 0x0004  # used for varargs (rare)
 
 
 if idaapi.IDA_SDK_VERSION >= 920:
@@ -123,33 +128,55 @@ if idaapi.IDA_SDK_VERSION >= 920:
             # Accept both fixed & vararg (Swift thunks are fixed; being permissive is fine)
             return True
 
-        # Return in X0 (standard AArch64)
         def calc_retloc(self, fti: ida_typeinf.func_type_data_t):
             if not fti.rettype.is_void():
                 if fti.rettype.get_size() == 8:
+                    # Return in X0 (standard AArch64)
                     fti.retloc.set_reg1(X0)
                 elif fti.rettype.get_size() == 16:
+                    # Or return structs in both X0:X1 (Such as `Swift::String`)
                     fti.retloc.set_reg2(X0, X1)
             return True
 
-        # Place arg0 in X20, then X0..X7, then stack (8-byte slots)
+        def _find_return_ptr_idx(self, fti) -> int | None:
+            """Find the index of an explicitly-declared __return_ptr argument."""
+            for idx, fa in enumerate(fti):
+                if fa.flags & FAH_RETLOC:
+                    return idx
+            return None
+
         def calc_arglocs(self, fti: ida_typeinf.func_type_data_t):
-            # __int64 __swiftClassCall URL_appendingPathComponent____(void *, Swift::String);
+            # 1) If user declared __return_ptr, pin it to X8 and exclude X8 from others.
+            retptr_idx = self._find_return_ptr_idx(fti)
+            reserve_x8 = retptr_idx is not None
+
+            # Place the retptr first so we don't accidentally reuse X8.
+            if reserve_x8:
+                rp = fti[retptr_idx]
+                # Place exactly in X8. (We ignore size; it's a pointer.)
+                rp.argloc.set_reg1(X8)
+
+            # 2) Place the remaining arguments (excluding X8).
+            reg_order = [r for r in _REG_ORDER if r != X8] if reserve_x8 else list(_REG_ORDER)
+
             stk_off = 0
-            i = 0
-            for fa in fti:
-                if i < len(_REG_ORDER):
-                    if fa.type.get_size() == 8:
-                        fa.argloc.set_reg1(_REG_ORDER[i])
-                    elif fa.type.get_size() == 16:
-                        fa.argloc.set_reg2(_REG_ORDER[i], _REG_ORDER[i + 1])
-                        i += 1
+            reg_i = 0
+            for idx, fa in enumerate(fti):
+                if reserve_x8 and idx == retptr_idx:
+                    continue  # already placed in X8
+
+                if reg_i < len(reg_order):
+                    sz = fa.type.get_size()
+                    if sz == 16 and reg_i + 1 < len(reg_order):
+                        fa.argloc.set_reg2(reg_order[reg_i], reg_order[reg_i + 1])
+                        reg_i += 2
+                    else:
+                        fa.argloc.set_reg1(reg_order[reg_i])
+                        reg_i += 1
                 else:
-                    # 8-byte aligned stack slots are a reasonable default on AArch64
                     fa.argloc.set_stkoff(stk_off)
                     stk_off += 8
-                i += 1
-            # optional: remember stack usage if you want
+
             self.stkargs = stk_off
             return self.calc_retloc(fti)
 
