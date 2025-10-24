@@ -3,11 +3,13 @@ from ida_funcs import func_t
 from ida_ua import insn_t
 from idahelper import instructions, segments, xrefs
 
-stubs = [s for s in segments.get_segments() if '__stubs' in s.name or '__auth_stubs' in s.name]
+stubs = [s for s in segments.get_segments() if "__stubs" in s.name or "__auth_stubs" in s.name]
+
 
 def is_stub_address(ea: int) -> bool:
     """Check if the given address is within any stub segment"""
     return any(stub.start_ea <= ea < stub.end_ea for stub in stubs)
+
 
 def fix_xrefs():
     global_total_modified = 0
@@ -30,6 +32,7 @@ def handle_func(func: func_t) -> int:
             total_modified += handle_bl_insn(insn)
     return total_modified
 
+
 def handle_bl_insn(insn: insn_t) -> bool:
     # Get the target of the BL instruction
     # noinspection PyPropertyAccess
@@ -47,6 +50,7 @@ def handle_bl_insn(insn: insn_t) -> bool:
     # Add code xref from the BL instruction to the stub
     insn.add_cref(address, 0, ida_xref.fl_CN | ida_xref.XREF_USER)
     return True
+
 
 if __name__ == "__main__":
     fix_xrefs()

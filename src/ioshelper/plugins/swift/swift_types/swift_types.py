@@ -2,7 +2,7 @@ import ida_idp
 import ida_typeinf
 import idaapi
 import idc
-from idahelper import memory, tif
+from idahelper import file_format, memory, tif
 
 DECLS = """
 typedef long long s64;
@@ -93,27 +93,24 @@ def _reg(name: str) -> int:
     raise RuntimeError(f"Cannot resolve register '{name}'")
 
 
-# Resolve once; will raise early if not on AArch64
-X0 = _reg("X0")
-X1 = _reg("X1")
-X2 = _reg("X2")
-X3 = _reg("X3")
-X4 = _reg("X4")
-X5 = _reg("X5")
-X6 = _reg("X6")
-X7 = _reg("X7")
-X8 = _reg("X8")
-X20 = _reg("X20")
+if file_format.is_arm64() and idaapi.IDA_SDK_VERSION >= 920:
+    X0 = _reg("X0")
+    X1 = _reg("X1")
+    X2 = _reg("X2")
+    X3 = _reg("X3")
+    X4 = _reg("X4")
+    X5 = _reg("X5")
+    X6 = _reg("X6")
+    X7 = _reg("X7")
+    X8 = _reg("X8")
+    X20 = _reg("X20")
 
-# first arg in X20, then normal ABI
-_REG_ORDER = [X20, X0, X1, X2, X3, X4, X5, X6, X7]
+    # first arg in X20, then normal ABI
+    _REG_ORDER = [X20, X0, X1, X2, X3, X4, X5, X6, X7]
 
-FAH_HIDDEN = 0x0001
-FAH_RETLOC = 0x0002  # “return location” / hidden sret pointer
-FAH_VARARG = 0x0004  # used for varargs (rare)
-
-
-if idaapi.IDA_SDK_VERSION >= 920:
+    FAH_HIDDEN = 0x0001
+    FAH_RETLOC = 0x0002  # “return location” / hidden sret pointer
+    FAH_VARARG = 0x0004  # used for varargs (rare)
 
     class swift_class_cc_t(ida_typeinf.custom_callcnv_t):
         def __init__(self):
@@ -213,7 +210,7 @@ if idaapi.IDA_SDK_VERSION >= 920:
 else:
 
     def register_calling_convention():
-        print("[swift-types] IDA version does not support custom calling conventions. Require IDA 9.2 or later.")
+        pass
 
 
 def fix_swift_types() -> None:
