@@ -202,7 +202,7 @@ class SwiftStringVisitor(ctree_parentee_t):
 
         # Find the complementary assignment earlier in the same block/comma
         need_off = 0 if cur_off == 8 else 8
-        prior_expr, ctx = _find_prior_complementary_assignment(self.parents, expr, var_x, need_off)
+        prior_expr, _ctx = _find_prior_complementary_assignment(self.parents, expr, var_x, need_off)
         if prior_expr is None:
             return
 
@@ -233,8 +233,9 @@ class SwiftStringVisitor(ctree_parentee_t):
         lhs_parent = cexpr_t(expr.x.x)
         expr.x.swap(lhs_parent)
 
-        # Neutralize the older complementary assignment
-        _remove_prior_with_ctx(ctx, expr)
+        # TODO: Consider uncomment - as this may cause IDA an internal error
+        # # Neutralize the older complementary assignment
+        # _remove_prior_with_ctx(ctx, expr)
 
     def visit_eq_expr(self, expr: cexpr_t):
         # Support equality comparisons, for cases like `if (str._countAndFlagsBits == 0 && str._object == 0)`
