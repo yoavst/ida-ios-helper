@@ -250,9 +250,7 @@ class SwiftStringVisitor(ctree_parentee_t):
 
         # Check if both sides refer to the same variable
         need_off = 0 if cur_off_lhs == 8 else 8
-        if not _is_info_specific(
-            rhs_eq_info, var_x_lhs, need_off, ida_hexrays.cot_eq
-        ):
+        if not _is_info_specific(rhs_eq_info, var_x_lhs, need_off, ida_hexrays.cot_eq):
             return
 
         # Extract values (bits @ off 0, object @ off 8)
