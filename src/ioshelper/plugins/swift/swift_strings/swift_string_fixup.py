@@ -141,12 +141,13 @@ def _find_prior_complementary_assignment(  # noqa: C901
 def _remove_prior_with_ctx(ctx: CommaContext | BlockContext, current: cexpr_t):
     """
     Neutralize the earlier complementary assignment.
-    - In comma-exprs: replace '(left, current)' with 'current'.
+    - In comma-exprs: replace '(left, current)' with '(1, current)'.
     - In blocks: turn the victim instruction into an empty statement (';').
     """
     if isinstance(ctx, CommaContext):
-        current_copy = cexpr_t(current)
-        ctx.parent.swap(current_copy)
+        # Swaping the parent can lead to deleting nodes we iterate over, so replace LHS with constant 1
+        # TODO: Is there a cleaner way to do this?
+        ctx.parent.x.swap(cexpr.from_const_value(1))
     elif isinstance(ctx, BlockContext):
         victim = ctx.parent.cblock[ctx.idx]
         victim.cleanup()
@@ -182,11 +183,8 @@ class SwiftStringVisitor(ctree_parentee_t):
         # Only process assignments
         if expr.op == ida_hexrays.cot_asg:
             self.visit_asg_expr(expr)
-        elif expr.op == ida_hexrays.cot_eq:
-            # TODO: Consider uncommenting when this issue is resolved:
-            # https://community.hex-rays.com/t/internal-error-50065-when-trying-to-replace-an-ast-expression/538
-            # self.visit_eq_expr(expr)
-            pass
+        elif expr.op == ida_hexrays.cot_land:
+            self.visit_land_expr(expr)
         return 0
 
     def visit_asg_expr(self, expr: cexpr_t):
@@ -200,7 +198,7 @@ class SwiftStringVisitor(ctree_parentee_t):
 
         # Find the complementary assignment earlier in the same block/comma
         need_off = 0 if cur_off == 8 else 8
-        prior_expr, _ctx = _find_prior_complementary_assignment(self.parents, expr, var_x, need_off)
+        prior_expr, ctx = _find_prior_complementary_assignment(self.parents, expr, var_x, need_off)
         if prior_expr is None:
             return
 
@@ -231,42 +229,39 @@ class SwiftStringVisitor(ctree_parentee_t):
         lhs_parent = cexpr_t(expr.x.x)
         expr.x.swap(lhs_parent)
 
-        # TODO: Consider uncomment. This breaks when MAX_NCOMMAS is not 1 on some situations
         # # Neutralize the older complementary assignment
-        # _remove_prior_with_ctx(_ctx, expr)
+        _remove_prior_with_ctx(ctx, expr)
 
-    def visit_eq_expr(self, expr: cexpr_t):
+    def visit_land_expr(self, expr: cexpr_t):
         # Support equality comparisons, for cases like `if (str._countAndFlagsBits == 0 && str._object == 0)`
+        lhs, rhs = expr.x, expr.y
 
-        # If we are an expression, we cannot be the root, so there is always a parent
-        parent = self.parents[len(self.parents) - 1].to_specific_type
-        # Support only being the right side of an `x && y` expression
-        if parent.op != ida_hexrays.cot_land or parent.y != expr:
+        # Check both sides are equality comparisons
+        if lhs.op != ida_hexrays.cot_eq or rhs.op != ida_hexrays.cot_eq:
             return
 
-        if (eq_info := _unpack_memref_const(expr)) is None:
+        if (lhs_eq_info := _unpack_memref_const(lhs)) is None or (rhs_eq_info := _unpack_memref_const(rhs)) is None:
             return
-        var_x, cur_off, value = eq_info.var, eq_info.mem_off, eq_info.value
+        var_x_lhs, cur_off_lhs, value_lhs = lhs_eq_info.var, lhs_eq_info.mem_off, lhs_eq_info.value
 
         # Only offsets 0 (countAndFlagsBits) & 8 (_object)
-        if cur_off not in (0, 8):
+        if cur_off_lhs not in (0, 8):
             return
 
-        # Find the complementary assignment earlier in the same block/comma
-        need_off = 0 if cur_off == 8 else 8
-        prior_expr = parent.x
-        if (prior_info := _unpack_memref_const(prior_expr)) is None or not _is_info_specific(
-            prior_info, var_x, need_off, ida_hexrays.cot_eq
+        # Check if both sides refer to the same variable
+        need_off = 0 if cur_off_lhs == 8 else 8
+        if not _is_info_specific(
+            rhs_eq_info, var_x_lhs, need_off, ida_hexrays.cot_eq
         ):
             return
 
         # Extract values (bits @ off 0, object @ off 8)
-        if cur_off == 8:
-            bits_val = prior_info.value
-            obj_val = value
-        else:  # cur_off == 0
-            bits_val = value
-            obj_val = prior_info.value
+        if cur_off_lhs == 8:
+            bits_val = rhs_eq_info.value
+            obj_val = value_lhs
+        else:  # cur_off_lhs == 0
+            bits_val = value_lhs
+            obj_val = rhs_eq_info.value
 
         # Decode the string
         s = decode_swift_string(bits_val, obj_val)
@@ -281,7 +276,7 @@ class SwiftStringVisitor(ctree_parentee_t):
         )
 
         new_comparison = cexpr.from_binary_op(
-            cexpr_t(expr.x.x), call, ida_hexrays.cot_eq, tif.from_c_type("bool"), parent.ea
+            cexpr_t(lhs.x.x), call, ida_hexrays.cot_eq, tif.from_c_type("bool"), expr.ea
         )
-        # FIXME why swap cause an internal error
-        parent.swap(new_comparison)
+        expr.swap(new_comparison)
+        self.prune_now()
