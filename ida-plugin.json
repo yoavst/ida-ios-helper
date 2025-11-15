@@ -6,11 +6,11 @@
         "entryPoint": "ida_plugin_stub.py",
         "categories": ["decompilation"],
         "idaVersions": ">=9.0",
-        "version": "1.0.17",
+        "version": "1.0.19",
         "logoPath": "res/logo.png",
         "keywords": ["ios", "objc", "swift", "kernel-cache"],
         "license": "GPL-3.0",
-        "pythonDependencies": ["ida-ios-helper==1.0.17"],
+        "pythonDependencies": ["ida-ios-helper==1.0.19"],
         "urls": {"repository": "https://github.com/yoavst/ida-ios-helper"},
         "authors": [{"name": "Yoav Sternberg", "email": "yoav.sternberg@gmail.com"}]
     }
