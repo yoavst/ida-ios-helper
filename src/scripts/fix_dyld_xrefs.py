@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import ida_xref
 from ida_funcs import func_t
 from ida_ua import insn_t
@@ -6,6 +8,7 @@ from idahelper import instructions, segments, xrefs
 stubs = [s for s in segments.get_segments() if "__stubs" in s.name or "__auth_stubs" in s.name]
 
 
+@lru_cache(1000)
 def is_stub_address(ea: int) -> bool:
     """Check if the given address is within any stub segment"""
     return any(stub.start_ea <= ea < stub.end_ea for stub in stubs)
@@ -28,7 +31,7 @@ def fix_xrefs():
 def handle_func(func: func_t) -> int:
     total_modified = 0
     for insn in instructions.from_func(func):
-        if insn.get_canon_mnem() == "BL":
+        if insn.get_canon_mnem() in ("B", "BL"):
             total_modified += handle_bl_insn(insn)
     return total_modified
 
