@@ -77,6 +77,7 @@ def get_modules_for_file() -> list[ComponentFactory]:
 
 def shared_modules() -> list[ComponentFactory]:
     return [
+        this_arg_fixer_component,
         toggle_ios_helper_mount_component,
         clang_block_args_analyzer_component,
         clang_block_optimizer_component,
@@ -101,7 +102,6 @@ def objc_plugins() -> list[ComponentFactory]:
 
 def kernel_cache_plugins() -> list[ComponentFactory]:
     return [
-        this_arg_fixer_component,
         jump_to_vtable_component,
         generic_calls_fix_component,
         local_func_renamer_component,

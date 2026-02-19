@@ -13,6 +13,7 @@ from ida_hexrays import (
 from ida_typeinf import tinfo_t
 from idahelper import tif
 from idahelper.ast import cexpr, cfunc, lvars
+from idahelper.ast.cexpr import getv
 from idahelper.ast.lvars import VariableModification
 from idahelper.microcode import mba, mblock, mop
 
@@ -279,18 +280,18 @@ def get_by_ref_args_for_block_candidates(assignments: list[StructFieldAssignment
             if refed_expr.op != ida_hexrays.cot_var:
                 continue
             # Check if the variable is not already handled
-            if is_block_arg_byref_type(refed_expr.v.getv().type()):
+            if is_block_arg_byref_type(getv(refed_expr.v).type()):
                 continue
             # Return the stack offset of the variable
-            stack_offset = refed_expr.v.getv().get_stkoff()
+            stack_offset = getv(refed_expr.v).get_stkoff()
         # block.lvar2 = v8 (and v8 is array type)
         elif expr.op == ida_hexrays.cot_var:
             # The variable could not have been handled, as it should be a ref in this case
             # Check it is an array type, as this is the only situation I can think of that
             # will represent a byref arg block and will not be a ref.
-            if not expr.v.getv().type().is_array():
+            if not getv(expr.v).type().is_array():
                 continue
-            stack_offset = expr.v.getv().get_stkoff()
+            stack_offset = getv(expr.v).get_stkoff()
 
         if stack_offset != -1:
             possible_stack_offsets[stack_offset] = assignment

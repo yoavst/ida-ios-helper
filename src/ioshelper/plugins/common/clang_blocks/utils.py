@@ -7,6 +7,7 @@ import idaapi
 from ida_hexrays import cexpr_t, cfuncptr_t, cinsn_t, lvar_t
 from ida_typeinf import tinfo_t, udm_t
 from idahelper import tif
+from idahelper.ast.cexpr import getv
 
 
 @dataclass
@@ -53,7 +54,7 @@ class LvarFieldsAssignmentsCollector(ida_hexrays.ctree_visitor_t):
             return 0
 
         # Check if the local variable is what we are looking for
-        target_obj_lvar: lvar_t = target_obj.v.getv()
+        target_obj_lvar: lvar_t = getv(target_obj.v)
         if target_obj_lvar.name not in self._target_lvars_names:
             return 0
 
