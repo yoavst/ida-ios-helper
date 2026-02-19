@@ -19,8 +19,9 @@ jump_to_vtable_component = UIActionsComponent.factory(
                 JumpToVtablesXrefs(),
                 "Shift+X",
             ),
-            dynamic_menu_add=lambda widget, popup: idaapi.get_widget_type(widget) == idaapi.BWN_PSEUDOCODE
-            and get_vtable_call() is not None,
+            dynamic_menu_add=lambda widget, popup: (
+                idaapi.get_widget_type(widget) == idaapi.BWN_PSEUDOCODE and get_vtable_call() is not None
+            ),
         )
     ],
 )
