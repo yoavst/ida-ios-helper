@@ -36,8 +36,8 @@ VOID_FUNCTIONS_TO_REMOVE_WITH_SINGLE_ARG: list[str | re.Pattern] = [
     # intrinsics
     "__break",
     # CFoundation
-    "_CFRelease",
-    re.compile(r"_CFRelease_(\d+)"),
+    # "_CFRelease",
+    # re.compile(r"_CFRelease_(\d+)"),
     # swift
     "_swift_bridgeObjectRelease",
 ]
