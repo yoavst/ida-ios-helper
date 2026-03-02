@@ -1,3 +1,6 @@
+import ida_bytes
+import ida_funcs
+import ida_hexrays
 import ida_idp
 import ida_typeinf
 import idaapi
@@ -200,17 +203,148 @@ if file_format.is_arm64() and idaapi.IDA_SDK_VERSION >= 920:
         def decorate_name(self, name, should_decorate, cc, ftype):
             return ida_typeinf.gen_decorate_name(name, should_decorate, ida_typeinf.CM_CC_UNKNOWN, ftype)
 
-    def register_calling_convention():
+    _SWIFT_CLASS_CC_READY = False
+
+    def register_calling_convention() -> bool:
+        global _SWIFT_CLASS_CC_READY
+        if _SWIFT_CLASS_CC_READY:
+            return True
+
         ccid = ida_typeinf.register_custom_callcnv(swift_class_cc_t())
         if ccid != ida_typeinf.CM_CC_INVALID:
+            _SWIFT_CLASS_CC_READY = True
             print(f"[swift-types] Installed __swiftClassCall (id=0x{ccid:x})")
+            return True
         else:
-            print("[swift-types] Failed registering __swiftClassCall")
+            return False
 
 else:
 
-    def register_calling_convention():
-        pass
+    def register_calling_convention() -> bool:
+        return False
+
+
+# Try to register as early as possible (module import time).
+# If this happens too early in IDA startup, later hooks will retry.
+register_calling_convention()
+
+
+def _is_x20_move_insn(ea: int) -> bool:
+    if idc.print_insn_mnem(ea).upper() != "MOV":
+        return False
+
+    dst = idc.print_operand(ea, 0).replace(" ", "").upper()
+    src = idc.print_operand(ea, 1).replace(" ", "").upper()
+    return src == "X20" and dst.startswith("X") and dst != "X20"
+
+
+def _is_x20_load_insn(ea: int) -> bool:
+    if not idc.print_insn_mnem(ea).upper().startswith("LD"):
+        return False
+
+    src = idc.print_operand(ea, 1).replace(" ", "").upper()
+    return src.startswith("[X20")
+
+
+def _uses_x20_before_first_call(func: ida_funcs.func_t) -> bool:
+    ea = func.start_ea
+    saw_x20_usage = False
+    while ea != idaapi.BADADDR and ea < func.end_ea:
+        if not ida_bytes.is_code(ida_bytes.get_flags(ea)):
+            ea = idc.next_head(ea, func.end_ea)
+            continue
+
+        mnem = idc.print_insn_mnem(ea).upper()
+        if mnem in {"BL", "BLR"}:
+            return saw_x20_usage
+
+        if _is_x20_move_insn(ea) or _is_x20_load_insn(ea):
+            saw_x20_usage = True
+
+        ea = idc.next_head(ea, func.end_ea)
+    return False
+
+
+def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
+    func_name = func.name
+    if func_name is None:
+        func_name = f"sub_{func.start_ea:x}"
+
+    id_type = tif.from_c_type("id")
+    if id_type is None:
+        return False
+
+    func_details = tif.get_func_details(func)
+    if func_details is None:
+        return bool(idc.SetType(func.start_ea, "id __swiftClassCall (id self)"))
+
+    current_type = idc.get_type(func.start_ea)
+    if current_type is None:
+        return False
+
+    for cc in ("__swiftClassCall", "__fastcall", "__cdecl", "__stdcall", "__vectorcall"):
+        # Strip current CC from the current type
+        current_type = current_type.replace(cc, "")
+
+    if "(" not in current_type:
+        return False
+
+    if f"{func_name}(" not in current_type:
+        return_type, post_open_brackets = current_type.split("(", 1)
+    else:
+        return_type, post_open_brackets = current_type.split(f"{func_name}(", 1)
+    original_args = [arg.strip() for arg in post_open_brackets.split(")", 1)[0].split(",") if arg.strip()]
+    first_arg = original_args[0] if original_args else ""
+    new_args = original_args if first_arg.startswith("id self") or first_arg == "id" else ["id self", *original_args]
+    new_type = f"{return_type} __swiftClassCall {func_name}({', '.join(new_args)})"
+    if not idc.SetType(func.start_ea, new_type):
+        return False
+    print(f"[swift-types] {new_type}")
+    return True
+
+
+def _mark_cfunc_dirty(func_ea: int) -> None:
+    """
+    Invalidate Hex-Rays cache for this function so UI pseudocode reflects updated prototype.
+    Some IDA versions expose mark_cfunc_dirty(ea, close_views) while others expose mark_cfunc_dirty(ea).
+    """
+    if not hasattr(ida_hexrays, "mark_cfunc_dirty"):
+        return
+
+    try:
+        ida_hexrays.mark_cfunc_dirty(func_ea, False)
+    except TypeError:
+        ida_hexrays.mark_cfunc_dirty(func_ea)
+
+
+def optimize_swift_class_call(func_ea: int) -> bool:
+    func = ida_funcs.get_func(func_ea)
+    if func is None:
+        return False
+    if not _uses_x20_before_first_call(func):
+        return False
+    return _apply_swift_class_call_signature(func)
+
+
+class SwiftClassCallHook(ida_hexrays.Hexrays_Hooks):
+    def __init__(self):
+        super().__init__()
+        register_calling_convention()
+
+    def maturity(self, cfunc: ida_hexrays.cfunc_t, new_maturity: int) -> int:
+        # Retry registration in case module-import time was too early.
+        register_calling_convention()
+
+        # Run late when the function prototype is stable.
+        if new_maturity < ida_hexrays.CMAT_CPA:
+            return 0
+
+        func_ea = cfunc.entry_ea
+
+        if optimize_swift_class_call(func_ea):
+            print(f"[swift-types] Applied x20 class-call optimization to {func_ea:X}")
+            _mark_cfunc_dirty(func_ea)
+        return 0
 
 
 def fix_swift_types() -> None:
