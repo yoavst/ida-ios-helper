@@ -27,6 +27,7 @@ from .plugins.objc.objc_sugar import objc_sugar_component
 from .plugins.objc.oslog import component as oslog_component
 from .plugins.swift.swift_strings import swift_strings_component
 from .plugins.swift.swift_types import swift_types_component, swift_types_hook_component
+from .plugins.swift.swift_adjust_frame_size import swift_frame_increase_size_component
 
 TOGGLE_ACTION_ID = "ioshelper:toggle"
 
@@ -98,6 +99,7 @@ def objc_plugins() -> list[ComponentFactory]:
         swift_types_component,
         swift_types_hook_component,
         swift_strings_component,
+        swift_frame_increase_size_component,
     ]
 
 
