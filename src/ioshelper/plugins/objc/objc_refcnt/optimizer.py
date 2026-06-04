@@ -3,15 +3,8 @@ __all__ = ["objc_calls_optimizer_t"]
 import re
 
 import ida_hexrays
-from ida_hexrays import (
-    mblock_t,
-    mcallinfo_t,
-    minsn_t,
-    minsn_visitor_t,
-    mop_t,
-    mop_visitor_t,
-)
-from idahelper.microcode import minsn, mreg
+from ida_hexrays import mblock_t, mcallinfo_t, minsn_t, minsn_visitor_t, mop_t, mop_visitor_t
+from idahelper.microcode import minsn, mop, mreg
 
 from ioshelper.base.utils import CounterMixin, match
 
@@ -56,6 +49,19 @@ ASSIGN_FUNCTIONS: list[str | re.Pattern] = [
     re.compile(r"j__objc_storeStrong_(\d+)"),
 ]
 
+SET_PROPERTY_FUNCTIONS: list[str | re.Pattern] = [
+    "_objc_setProperty_atomic_copy",
+    "j__objc_setProperty_atomic_copy",
+    re.compile(r"j__objc_setProperty_atomic_copy_(\d+)"),
+]
+
+# Replace get(x, offset) with x.field;
+GET_PROPERTY_FUNCTIONS: list[str | re.Pattern] = [
+    "_objc_getProperty",
+    "j__objc_getProperty",
+    re.compile(r"j__objc_getProperty_(\d+)"),
+]
+
 
 class mop_optimizer_t(mop_visitor_t, CounterMixin):
     def visit_mop(self, op: mop_t, tp, is_target: bool) -> int:
@@ -86,6 +92,24 @@ class mop_optimizer_t(mop_visitor_t, CounterMixin):
             op.swap(fi.args[0])
             self.count()
 
+        # If it should be optimized to field access, optimize
+        elif match(GET_PROPERTY_FUNCTIONS, name):
+            fi: mcallinfo_t = insn.d.f
+            if fi.args.empty():
+                # No arguments, probably IDA have not optimized it yet
+                return
+
+            offset = mop.get_const_int(fi.args[2])
+            if offset is None:
+                # Offset is not const so cannot optimize
+                return
+
+            # Replace the call with a field access
+            field_access = create_field_access(fi.args[0], offset, self.curins.ea, insn.d.size)
+            # Swap mop containing call with field access
+            op.d.swap(field_access)
+            self.count()
+
 
 class insn_optimizer_t(minsn_visitor_t, CounterMixin):
     def visit_minsn(self) -> int:
@@ -105,6 +129,7 @@ class insn_optimizer_t(minsn_visitor_t, CounterMixin):
             self.void_function_to_remove,
             self.id_function_to_replace_with_their_arg,
             self.assign_functions,
+            self.set_property_functions,
         ]:
             # noinspection PyArgumentList
             if optimization(name, insn, blk):
@@ -174,6 +199,30 @@ class insn_optimizer_t(minsn_visitor_t, CounterMixin):
         self.count()
         return True
 
+    def set_property_functions(self, name: str, insn: minsn_t, _blk: mblock_t) -> bool:
+        if not match(SET_PROPERTY_FUNCTIONS, name):
+            return False
+
+        fi: mcallinfo_t = insn.d.f
+        if fi.args.size() != 4:
+            # Not enough argument, probably not optimized yet
+            return False
+
+        offset = mop.get_const_int(fi.args[3])
+        if offset is None:
+            # Offset is not constant
+            return False
+
+        insn.opcode = ida_hexrays.m_stx
+        # src
+        insn.l.swap(fi.args[2])
+        # dest
+        insn.d.swap(create_base_plus_offset(fi.args[0], offset, self.curins.ea))
+        # seg - need to be CS/DS according to the docs.
+        insn.r.make_reg(mreg.cs_reg(), 2)
+        self.count()
+        return True
+
 
 class objc_calls_optimizer_t(ida_hexrays.optinsn_t):
     def func(self, blk: mblock_t, ins: minsn_t, optflags: int):
@@ -189,3 +238,36 @@ class objc_calls_optimizer_t(ida_hexrays.optinsn_t):
         if changes:
             blk.mark_lists_dirty()
         return changes
+
+
+def create_field_access(base: mop_t, offset: int, ea: int, op_size: int) -> minsn_t:
+    # Create a new mop for the field access
+
+    base_plus_offset = create_base_plus_offset(base, offset, ea)
+
+    # ldx := *(add_wrapper)
+    ldx = minsn_t(ea)
+    ldx.opcode = ida_hexrays.m_ldx
+    ldx.l.make_reg(mreg.cs_reg(), 2)
+    ldx.r = base_plus_offset
+    ldx.d = mop_t()
+    ldx.d.size = op_size
+    ldx.size = op_size
+    return ldx
+
+
+def create_base_plus_offset(base: mop_t, offset: int, ea: int) -> mop_t:
+    # add := minsn_t(base + offset)
+    add = minsn_t(ea)
+    add.opcode = ida_hexrays.m_add
+    add.l.swap(mop_t(base))
+    add.r.make_number(offset, 8)
+    add.d = mop_t()
+    add.d.size = 8
+    add.size = 8
+
+    # add_wrapper := mop_t(add)
+    add_wrapper = mop_t()
+    add_wrapper.create_from_insn(add)
+    add_wrapper.size = 8
+    return add_wrapper

@@ -17,7 +17,7 @@ A plugin for IDA Pro 9.0+ to help with iOS code analysis.
 - Objective-C
     - Hide memory management
       functions - `objc_retain`, `objc_release`, `objc_autorelease`, `objc_retainAutoreleasedReturnValue`.
-        - Optimize `_objc_storeStrong` to an assignment.
+        - Optimize `_objc_storeStrong` and `_objc_setProperty_atomic_copy` to an assignment, `_objc_getProperty` to getting a field.
     - collapse `__os_log_impl` calls.
     - Hide selectors and static classes from Objective-c calls.
     - When in Obj-C method, Ctrl+4 will show xrefs to the selector.
