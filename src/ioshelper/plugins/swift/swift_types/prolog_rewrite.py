@@ -299,6 +299,97 @@ def _erase_unused_stack_allocations(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa:
     return erased
 
 
+def _rename_swift_error_lvars(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa: C901
+    """Find lvars that capture the live-out X21 from a `__spoils<X21>` call
+    (i.e. a Swift `throws` function we tagged) and rename them to `error`.
+
+    By CMAT_FINAL, hex-rays has spilled x21 out of its physical register into
+    whatever lvar slot was convenient, so we can't find these via
+    `is_reg_var()`. Pattern-match instead at the AST level: when a call to a
+    `__spoils<X21>` function is followed (within the same block, after a few
+    intervening statements) by an `if (vN)` whose condition is a freshly-read
+    cot_var, that vN is the swifterror.
+    """
+    lvars = cfunc.get_lvars()
+    used_names: set[str] = {lvars[i].name for i in range(lvars.size())}
+
+    def _unique(base: str) -> str:
+        if base not in used_names:
+            used_names.add(base)
+            return base
+        i = 2
+        while f"{base}_{i}" in used_names:
+            i += 1
+        new_name = f"{base}_{i}"
+        used_names.add(new_name)
+        return new_name
+
+    renamed_idxs: set[int] = set()
+
+    class V(ida_hexrays.ctree_visitor_t):
+        def __init__(self):
+            super().__init__(ida_hexrays.CV_FAST)
+
+        def visit_insn(self, ins):  # noqa: C901
+            if ins.op != ida_hexrays.cit_block or ins.cblock is None:
+                return 0
+            block = ins.cblock
+            for i in range(block.size()):
+                stmt = block[i]
+                if not _is_swift_throws_call_stmt(stmt):
+                    continue
+                # Look up to a few statements ahead for an `if (vN) { … }`.
+                for j in range(i + 1, min(i + 6, block.size())):
+                    nxt = block[j]
+                    if nxt.op != ida_hexrays.cit_if:
+                        continue
+                    cond = nxt.cif.expr
+                    if cond is None:
+                        break
+                    cond_inner = cond
+                    if cond_inner.op in (ida_hexrays.cot_lnot, ida_hexrays.cot_bnot):
+                        cond_inner = cond_inner.x
+                    cond_inner = _strip_casts(cond_inner)
+                    if cond_inner.op != ida_hexrays.cot_var:
+                        break
+                    idx = cond_inner.v.idx
+                    if idx >= lvars.size():
+                        break
+                    lv = lvars[idx]
+                    if lv.has_user_name:
+                        break
+                    lv.name = _unique("error")
+                    lv.set_user_name()
+                    renamed_idxs.add(idx)
+                    break
+            return 0
+
+    V().apply_to(cfunc.body, None)
+    return len(renamed_idxs)
+
+
+def _is_swift_throws_call_stmt(stmt) -> bool:
+    """True if `stmt` is `cit_expr` whose top-level call is to a function whose
+    prototype includes `__spoils<…X21…>` — i.e. one we marked as Swift-throws."""
+    if stmt.op != ida_hexrays.cit_expr:
+        return False
+    e = stmt.cexpr
+    if e is None:
+        return False
+    # The expression at the top of a call statement is often the call itself,
+    # but may be wrapped in cot_asg for `result = fn(...)`.
+    call = e
+    if call.op == ida_hexrays.cot_asg:
+        call = _strip_casts(call.y)
+    if call.op != ida_hexrays.cot_call:
+        return False
+    callee = call.x
+    if callee.op != ida_hexrays.cot_obj:
+        return False
+    decl = idc.get_type(callee.obj_ea) or ""
+    return "__spoils" in decl
+
+
 def _erase_chkstk_calls(cfunc: ida_hexrays.cfunc_t) -> int:
     """Nop every `__chkstk_darwin(...)` call statement in the function.
 
@@ -446,6 +537,7 @@ class SwiftPrologRewriteHook(ida_hexrays.Hexrays_Hooks):
                 _apply_prolog_rewrites(cfunc)
             elif new_maturity == ida_hexrays.CMAT_FINAL:
                 _apply_buf_rewrites(cfunc)
+                _rename_swift_error_lvars(cfunc)
                 _erase_chkstk_calls(cfunc)
                 _erase_unused_stack_allocations(cfunc)
                 _purge_empty_statements(cfunc)

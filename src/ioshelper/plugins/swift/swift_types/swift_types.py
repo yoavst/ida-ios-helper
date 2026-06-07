@@ -565,7 +565,192 @@ def apply_swift_typeref_strings() -> int:
     return count
 
 
+def apply_swift_throws_x21() -> int:
+    """For every Swift `throws` function, add `__spoils<x21>` to its prototype
+    so hex-rays knows the call clobbers the swifterror register.
+
+    Without this, the decompiler treats x21 as callee-saved (it normally is on
+    ARM64), so any `if (x21)` error check at the call site reads the caller's
+    own x21 instead of the value the throwing function just returned in it.
+    With `__spoils<x21>` set, hex-rays models the call as live-out on x21 and
+    the error check becomes visible in the pseudocode.
+
+    Swift `throws` is encoded in the function's mangled name (a `K` marker in
+    the function signature position). We detect it from the demangled signature
+    via the literal ` throws ` keyword — robust across compiler versions.
+    """
+    pairs = [(ea, name) for ea, name in memory.names() if name.startswith(("_$s", "$s"))]
+    if not pairs:
+        return 0
+
+    # IDA's built-in Swift demangler elides the ` throws ` keyword — we have to
+    # batch through `xcrun swift-demangle` (which we already use to verify
+    # symbols elsewhere) to see it.
+    demangled_map = _xcrun_swift_demangle_batch([name for _, name in pairs])
+    if not demangled_map:
+        return 0
+
+    count = 0
+    for ea, name in pairs:
+        demangled = demangled_map.get(name, "")
+        if " throws " not in demangled and not demangled.endswith(" throws"):
+            continue
+        if _ensure_throws_x21_spoils(ea):
+            count += 1
+    if count:
+        print(f"[swift-types] Marked {count} Swift `throws` functions with __spoils<X21>")
+    return count
+
+
+def _xcrun_swift_demangle_batch(names: list[str]) -> dict[str, str]:
+    """Pipe every Swift mangled name through `xcrun swift-demangle` and return
+    a {mangled: demangled} map. Faster than per-call exec by ~100x for a few
+    hundred symbols."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["xcrun", "swift-demangle", "--compact"],  # noqa: S607
+            input="\n".join(names),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return {}
+    if result.returncode != 0:
+        return {}
+    out_lines = result.stdout.splitlines()
+    return dict(zip(names, out_lines, strict=False))
+
+
+def _func_has_no_args(ti) -> bool:
+    """True if `ti` is a function tinfo whose arg list is empty."""
+    if not ti.is_func():
+        return True
+    fti = ida_typeinf.func_type_data_t()
+    if not ti.get_func_details(fti):
+        return True
+    return fti.size() == 0
+
+
+def _resolve_func_tinfo(ea: int):
+    """Return a func `tinfo_t` for `ea`, or None.
+
+    Three sources, in order of preference:
+
+    1. The IDB-stored type via `ida_nalt.get_tinfo`. Present once a user-set
+       or previously-applied prototype exists.
+    2. The analyst-guessed type via `ida_typeinf.guess_tinfo`. Usually filled
+       in after IDA's initial auto-analysis from disassembly patterns alone.
+    3. Hex-rays' call-site inference. For imported Swift symbols neither (1)
+       nor (2) carries the arg list — only the decompiler does, by looking at
+       what each caller passes. Decompiling a single caller is enough to
+       populate the inferred type at the stub EA, after which `get_tinfo`
+       returns it. This is a one-shot priming step done lazily here.
+    """
+    import ida_xref
+
+    ti = ida_typeinf.tinfo_t()
+    if ida_nalt.get_tinfo(ti, ea) and ti.is_func() and not _func_has_no_args(ti):
+        return ti
+
+    guessed = ida_typeinf.tinfo_t()
+    code = ida_typeinf.guess_tinfo(guessed, ea)
+    if code != ida_typeinf.GUESS_FUNC_FAILED and guessed.is_func() and not _func_has_no_args(guessed):
+        return guessed
+
+    # Prime hex-rays by decompiling one caller. The decompiler walks the call
+    # site, infers the arg shape, and writes it back to the stub's tinfo —
+    # which `get_tinfo` then sees on the next read.
+    caller_ea = ida_xref.get_first_cref_to(ea)
+    primed = False
+    while caller_ea != idc.BADADDR and not primed:
+        func = ida_funcs.get_func(caller_ea)
+        if func is not None:
+            try:
+                ida_hexrays.decompile(func.start_ea)
+                primed = True
+            except Exception:  # noqa: S110
+                pass
+        caller_ea = ida_xref.get_next_cref_to(ea, caller_ea)
+    if not primed:
+        return None
+
+    ti = ida_typeinf.tinfo_t()
+    if ida_nalt.get_tinfo(ti, ea) and ti.is_func() and not _func_has_no_args(ti):
+        return ti
+    return None
+
+
+def _ensure_throws_x21_spoils(ea: int) -> bool:
+    """Add X21 to the function's spoiled-registers list without disturbing
+    the prototype.
+
+    First attempt rewrote the prototype as `__usercall …__spoils<X21>` by
+    string-splicing the existing return-type + arg-list. That looked clean
+    until you noticed it silently dropped the args that hex-rays *inferred*
+    from call sites for imported Swift symbols (whose stored IDB prototype
+    is empty). After applying, every caller renders as `lookForPattern…()`
+    with no args, and the args meant for the call leak into the next visible
+    call.
+
+    The robust fix: don't go through a parsed string at all. Read the live
+    `tinfo_t`, mutate `func_type_data_t.spoiled` to include X21, force the
+    CC to `__usercall`, and write back. Existing arg types are preserved
+    exactly because we never touched them.
+    """
+    try:
+        x21_idx = _reg("X21")
+    except RuntimeError:
+        return False
+
+    ti = _resolve_func_tinfo(ea)
+    if ti is None:
+        return False
+
+    fti = ida_typeinf.func_type_data_t()
+    if not ti.get_func_details(fti):
+        return False
+
+    # Already spoils X21? Leave it alone. `fti.spoiled` is a qvector of
+    # `reg_info_t` (NOT `argloc_t`) — each entry is a (reg, size) pair.
+    for i in range(fti.spoiled.size()):
+        ri = fti.spoiled[i]
+        try:
+            if ri.reg == x21_idx:
+                return False
+        except Exception:  # noqa: S110
+            pass
+
+    spoil_ri = ida_idp.reg_info_t()
+    spoil_ri.reg = x21_idx
+    spoil_ri.size = 8  # 64-bit AArch64 register
+    fti.spoiled.push_back(spoil_ri)
+    # `__spoils<…>` is only valid alongside `__usercall` — flip the CC.
+    fti.set_cc(ida_typeinf.CM_CC_SPECIAL)
+    # The spoiled list is persisted only when FTI_SPOILED is set; without
+    # this flag `create_func` rebuilds the type and silently drops it.
+    fti.flags |= ida_typeinf.FTI_SPOILED
+
+    new_ti = ida_typeinf.tinfo_t()
+    if not new_ti.create_func(fti):
+        return False
+    return bool(ida_typeinf.apply_tinfo(ea, new_ti, ida_typeinf.TINFO_DEFINITE))
+
+
 def fix_swift_types() -> None:
+    # Auto-analysis populates `memory.names()` with the Swift mangled symbol
+    # stubs we iterate later (FUNCTIONS_SIGNATURES + apply_swift_throws_x21).
+    # If we run before it finishes, externally-imported Swift `throws` stubs
+    # like `_$s...DiagnosticPatternMatching...lookForPattern...K...F` are
+    # invisible and never get `__spoils<X21>` — the caller's `if (error)`
+    # never appears.
+    import ida_auto
+
+    ida_auto.auto_wait()
+
     tif.create_from_c_decl(DECLS)
 
     register_calling_convention()
@@ -575,6 +760,7 @@ def fix_swift_types() -> None:
             idc.SetType(ea, sig)
 
     apply_swift_typeref_strings()
+    apply_swift_throws_x21()
     apply_swift_class_call_to_all_functions()
 
 
