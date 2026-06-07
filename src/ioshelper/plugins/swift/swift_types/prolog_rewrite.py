@@ -221,12 +221,10 @@ def _is_aligned_alloca(expr) -> bool:
     if add.op != ida_hexrays.cot_add:
         return False
     fifteen = _strip_casts(add.y)
-    if fifteen.op != ida_hexrays.cot_num or fifteen.numval() != 15:
-        return False
-    return True
+    return not (fifteen.op != ida_hexrays.cot_num or fifteen.numval() != 15)
 
 
-def _apply_buf_rewrites(cfunc: ida_hexrays.cfunc_t) -> int:
+def _apply_buf_rewrites(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa: C901
     """At CMAT_FINAL, walk the top-level block in source order. After every
     `__chkstk_darwin(<vwt>->size)` statement, the immediately-following aligned
     alloca `buf = (cast)sp - ((size + 15) & ~0xFLL)` is the opaque-storage slot
