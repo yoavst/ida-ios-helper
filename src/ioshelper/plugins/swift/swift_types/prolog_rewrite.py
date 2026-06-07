@@ -224,6 +224,149 @@ def _is_aligned_alloca(expr) -> bool:
     return not (fifteen.op != ida_hexrays.cot_num or fifteen.numval() != 15)
 
 
+def _count_lvar_uses(cfunc: ida_hexrays.cfunc_t) -> dict[int, int]:
+    """Count every cot_var read of every lvar across the function — used by
+    `_erase_unused_stack_allocations` to find prolog-allocated buffers that
+    aren't actually referenced anywhere downstream.
+
+    Each `vN = expr` assignment contributes one count to vN (the lhs cot_var),
+    so a count of 1 means the lvar is only written, never read.
+    """
+    counts: dict[int, int] = {}
+
+    class V(ida_hexrays.ctree_visitor_t):
+        def __init__(self):
+            super().__init__(ida_hexrays.CV_FAST)
+
+        def visit_expr(self, e):
+            if e.op == ida_hexrays.cot_var:
+                counts[e.v.idx] = counts.get(e.v.idx, 0) + 1
+            return 0
+
+    V().apply_to(cfunc.body, None)
+    return counts
+
+
+def _erase_unused_stack_allocations(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa: C901
+    """Nop `vN = (cast)<base> - <size>` statements whose LHS lvar is written
+    but never read. These are prolog stack-offset computations the compiler
+    materialized for buffers that downstream optimizations eliminated all
+    uses of — they survive in the pseudocode as pure noise.
+
+    Conservatively keeps anything the user has touched (`has_user_name` /
+    `has_user_type`) so we don't undo intentional reverse-engineering.
+    """
+    counts = _count_lvar_uses(cfunc)
+    lvars = cfunc.get_lvars()
+    erased = 0
+
+    class V(ida_hexrays.ctree_visitor_t):
+        def __init__(self):
+            super().__init__(ida_hexrays.CV_FAST)
+
+        def visit_insn(self, ins):
+            nonlocal erased
+            if ins.op != ida_hexrays.cit_expr:
+                return 0
+            e = ins.cexpr
+            if e is None or e.op != ida_hexrays.cot_asg:
+                return 0
+            target = e.x
+            if target.op != ida_hexrays.cot_var:
+                return 0
+            idx = target.v.idx
+            if idx >= lvars.size():
+                return 0
+            lv = lvars[idx]
+            if lv.has_user_name or lv.has_user_type:
+                return 0
+            if counts.get(idx, 0) > 1:
+                return 0  # has real readers downstream
+            # RHS must be `(cast)<something> - <something>` — the stack-offset
+            # shape we want to scrub. Don't touch a `v8 = f()` or similar.
+            rhs = _strip_casts(e.y)
+            if rhs.op != ida_hexrays.cot_sub:
+                return 0
+            try:
+                ins.cleanup()
+                ins.op = ida_hexrays.cit_empty
+                erased += 1
+            except Exception:  # noqa: S110
+                pass
+            return 0
+
+    V().apply_to(cfunc.body, None)
+    return erased
+
+
+def _erase_chkstk_calls(cfunc: ida_hexrays.cfunc_t) -> int:
+    """Nop every `__chkstk_darwin(...)` call statement in the function.
+
+    `__chkstk_darwin` is a runtime stack-grow safety primitive that the
+    compiler emits before each large alloca. Its presence in the pseudo is
+    pure noise — the reader doesn't gain anything from seeing the stack
+    bounds being probed. After this pass, `_purge_empty_statements` strips
+    the `cit_empty` placeholders left behind.
+    """
+    erased = 0
+
+    class V(ida_hexrays.ctree_visitor_t):
+        def __init__(self):
+            super().__init__(ida_hexrays.CV_FAST)
+
+        def visit_insn(self, ins):
+            nonlocal erased
+            if ins.op != ida_hexrays.cit_expr:
+                return 0
+            e = ins.cexpr
+            if e is None or e.op != ida_hexrays.cot_call or e.x.op != ida_hexrays.cot_obj:
+                return 0
+            if not _is_chkstk_callee(e.x.obj_ea):
+                return 0
+            try:
+                ins.cleanup()
+                ins.op = ida_hexrays.cit_empty
+                erased += 1
+            except Exception:  # noqa: S110
+                pass
+            return 0
+
+    V().apply_to(cfunc.body, None)
+    return erased
+
+
+def _purge_empty_statements(cfunc: ida_hexrays.cfunc_t) -> None:
+    """Walk every `cit_block` and erase its `cit_empty` children. Without this,
+    nop'd statements show up as bare `;` lines in the pseudo."""
+
+    class V(ida_hexrays.ctree_visitor_t):
+        def __init__(self):
+            super().__init__(ida_hexrays.CV_FAST)
+
+        def visit_insn(self, ins):
+            if ins.op != ida_hexrays.cit_block or ins.cblock is None:
+                return 0
+            block = ins.cblock
+            i = block.size() - 1
+            while i >= 0:
+                child = block[i]
+                if child.op == ida_hexrays.cit_empty:
+                    try:
+                        block.erase(i)
+                    except Exception:
+                        try:
+                            it = block.begin()
+                            for _ in range(i):
+                                it.next()
+                            block.erase(it)
+                        except Exception:  # noqa: S110
+                            pass
+                i -= 1
+            return 0
+
+    V().apply_to(cfunc.body, None)
+
+
 def _apply_buf_rewrites(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa: C901
     """At CMAT_FINAL, walk the top-level block in source order. After every
     `__chkstk_darwin(<vwt>->size)` statement, the immediately-following aligned
@@ -303,6 +446,9 @@ class SwiftPrologRewriteHook(ida_hexrays.Hexrays_Hooks):
                 _apply_prolog_rewrites(cfunc)
             elif new_maturity == ida_hexrays.CMAT_FINAL:
                 _apply_buf_rewrites(cfunc)
+                _erase_chkstk_calls(cfunc)
+                _erase_unused_stack_allocations(cfunc)
+                _purge_empty_statements(cfunc)
         except Exception as exc:
             print(f"[swift-prolog] {cfunc.entry_ea:X}: {exc!r}")
         return 0
