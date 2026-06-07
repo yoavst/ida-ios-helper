@@ -183,25 +183,128 @@ def _apply_prolog_rewrites(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa: C901
     return changes
 
 
+def _is_chkstk_callee(ea: int) -> bool:
+    name = idc.get_name(ea) or ""
+    return "chkstk_darwin" in name
+
+
+def _chkstk_vwt_size_type(call_expr, vwt_idx_to_type: dict[int, str]) -> str | None:
+    """If `call_expr` is `__chkstk_darwin(<vwt>->size)`, return the vwt's bare type name."""
+    callee = call_expr.x
+    if callee.op != ida_hexrays.cot_obj or not _is_chkstk_callee(callee.obj_ea):
+        return None
+    if call_expr.a.size() < 1:
+        return None
+    arg = _strip_casts(call_expr.a[0])
+    # `vwt->size` lifts to cot_memptr (or cot_memref) on the vwt lvar.
+    if arg.op in (ida_hexrays.cot_memptr, ida_hexrays.cot_memref):
+        base = _strip_casts(arg.x)
+        if base.op == ida_hexrays.cot_var and base.v.idx in vwt_idx_to_type:
+            return vwt_idx_to_type[base.v.idx]
+    return None
+
+
+def _is_aligned_alloca(expr) -> bool:
+    """Match `(cast)<sp> - ((size + 15) & 0xFFFFFFFFFFFFFFF0LL)`."""
+    expr = _strip_casts(expr)
+    if expr.op != ida_hexrays.cot_sub:
+        return False
+    rhs = _strip_casts(expr.y)
+    if rhs.op != ida_hexrays.cot_band:
+        return False
+    mask = _strip_casts(rhs.y)
+    if mask.op != ida_hexrays.cot_num:
+        return False
+    if (mask.numval() & 0xFFFFFFFFFFFFFFFF) != 0xFFFFFFFFFFFFFFF0:
+        return False
+    add = _strip_casts(rhs.x)
+    if add.op != ida_hexrays.cot_add:
+        return False
+    fifteen = _strip_casts(add.y)
+    if fifteen.op != ida_hexrays.cot_num or fifteen.numval() != 15:
+        return False
+    return True
+
+
+def _apply_buf_rewrites(cfunc: ida_hexrays.cfunc_t) -> int:
+    """At CMAT_FINAL, walk the top-level block in source order. After every
+    `__chkstk_darwin(<vwt>->size)` statement, the immediately-following aligned
+    alloca `buf = (cast)sp - ((size + 15) & ~0xFLL)` is the opaque-storage slot
+    for that type — rename the LHS lvar to `<Type>_buf`.
+    """
+    body = cfunc.body
+    if body.op != ida_hexrays.cit_block:
+        return 0
+
+    lvars = cfunc.get_lvars()
+    vwt_idx_to_type: dict[int, str] = {}
+    for idx in range(lvars.size()):
+        name = lvars[idx].name
+        if name.endswith("_vwt"):
+            vwt_idx_to_type[idx] = name[:-4]
+    if not vwt_idx_to_type:
+        return 0
+
+    used_names: set[str] = {lvars[i].name for i in range(lvars.size())}
+
+    def _unique(base: str) -> str:
+        if base not in used_names:
+            used_names.add(base)
+            return base
+        i = 2
+        while f"{base}_{i}" in used_names:
+            i += 1
+        new_name = f"{base}_{i}"
+        used_names.add(new_name)
+        return new_name
+
+    changes = 0
+    pending_type: str | None = None
+    for ins in body.cblock:
+        new_pending: str | None = None
+        if ins.op == ida_hexrays.cit_expr:
+            e = ins.cexpr
+            if e.op == ida_hexrays.cot_call:
+                new_pending = _chkstk_vwt_size_type(e, vwt_idx_to_type)
+            elif (
+                pending_type
+                and e.op == ida_hexrays.cot_asg
+                and e.x.op == ida_hexrays.cot_var
+                and _is_aligned_alloca(e.y)
+            ):
+                lv = lvars[e.x.v.idx]
+                base = f"{pending_type}_buf"
+                if not lv.has_user_name and lv.name != base and not lv.name.startswith(f"{base}_"):
+                    lv.name = _unique(base)
+                    lv.set_user_name()
+                    changes += 1
+        pending_type = new_pending
+    return changes
+
+
 class SwiftPrologRewriteHook(ida_hexrays.Hexrays_Hooks):
     """Detect the Swift opaque-storage prolog and rename the resulting `vN` lvars
-    to type-derived names, typing the VWT pointers as `SwiftValueWitnessTable *`.
+    to type-derived names. Two-stage hook:
 
-    Fires at `CMAT_BUILT` — the earliest stable maturity where the AST exists
-    and calls are visible. Applying the lvar type here lets it flow through
-    the later maturity stages where hex-rays lifts memory accesses against
-    typed pointers (so `*(vwt + 0x40)` decompiles as `vwt->size`). `CMAT_FINAL`
-    is too late: expressions are already lifted with the old type.
+    * `CMAT_BUILT`: rename md/vwt lvars and type the VWT pointer as
+      `SwiftValueWitnessTable *`. This needs to land *before* hex-rays' lifter
+      runs so subsequent memory accesses through the vwt pointer decompile as
+      `vwt->size` rather than `*(_QWORD*)(vwt+64)`.
+    * `CMAT_FINAL`: scan the now-lifted body for the `__chkstk_darwin(vwt->size)`
+      → aligned-alloca pairs and rename the buf lvars. Pattern detection here
+      relies on the already-lifted `vwt->size` memptr, which only exists
+      after the type has propagated.
 
     Direct lvar mutation only — `rename_lvar` rejects persistent renames during
-    a maturity hook anyway, so each F5 just re-runs this cheap in-memory pass.
+    a maturity hook, so each F5 re-runs this cheap in-memory pass.
     """
 
     def maturity(self, cfunc: ida_hexrays.cfunc_t, new_maturity: int) -> int:
-        if new_maturity != ida_hexrays.CMAT_BUILT:
-            return 0
         try:
-            _apply_prolog_rewrites(cfunc)
+            if new_maturity == ida_hexrays.CMAT_BUILT:
+                _apply_prolog_rewrites(cfunc)
+            elif new_maturity == ida_hexrays.CMAT_FINAL:
+                _apply_buf_rewrites(cfunc)
         except Exception as exc:
             print(f"[swift-prolog] {cfunc.entry_ea:X}: {exc!r}")
         return 0

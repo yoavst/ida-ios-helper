@@ -133,6 +133,9 @@ FUNCTIONS_SIGNATURES = {
     "_$s10Foundation3URLV6stringACSgSSh_tcfC": "void __swiftcall URL_init_string__(__int64 *__return_ptr, Swift::String url)",
     "_$s10Foundation3URLV4pathSSvg": "Swift::String __swiftcall URL_path_getter(void *__swiftself self)",
     "_$s10Foundation3URLV22appendingPathComponentyACSSF": "__int64 __swiftcall URL_appendingPathComponent____(void *__swiftself self, Swift::String component)",
+    # Logger
+    "_$s2os6LoggerV9logObjectSo03OS_a1_C0Cvg": "__int64 __swiftcall Logger_logObject_getter(_QWORD)",
+    "_$sSo13os_log_type_ta0A0E4infoABvgZ": "__int64 __fastcall static_os_log_type_t_info_getter(id)",
     # print()
     "_$ss5print_9separator10terminatoryypd_S2StF": "void __fastcall print___separator_terminator__(Swift_ArrayAny *, Swift::String, Swift::String)",
     "_$ss10debugPrint_9separator10terminatoryypd_S2StFfA0_": "Swift::String default_argument_1_of_debugPrint___separator_terminator__(void)",
