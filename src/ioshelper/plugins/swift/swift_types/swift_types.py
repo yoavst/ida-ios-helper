@@ -4,10 +4,11 @@ import ida_bytes
 import ida_funcs
 import ida_hexrays
 import ida_idp
+import ida_nalt
 import ida_typeinf
 import idaapi
 import idc
-from idahelper import file_format, memory, tif
+from idahelper import file_format, memory, segments, tif
 
 DECLS = """
 typedef long long s64;
@@ -502,6 +503,65 @@ class SwiftClassCallHook(ida_hexrays.Hexrays_Hooks):
         return 0
 
 
+def _find_swift_typeref_segment() -> segments.Segment | None:
+    """Locate the `__swift5_typeref` section regardless of IDA's naming form."""
+    for candidate in ("__swift5_typeref", "__TEXT:__swift5_typeref"):
+        seg = segments.get_segment_by_name(candidate)
+        if seg is not None:
+            return seg
+    for seg in segments.get_segments():
+        if seg.name.endswith("__swift5_typeref"):
+            return seg
+    return None
+
+
+def apply_swift_typeref_strings() -> int:
+    """Mark each Swift mangled type name in `__swift5_typeref` as a C string.
+
+    Names are NULL-terminated, but a name may contain `0x01..0x17` symbolic-reference
+    markers — each marker is followed by a 4-byte relative offset whose bytes can
+    legally be `0x00`. Splitting blindly on NULL would chop one long name into
+    several fragments, so this parser steps past each marker's 4-byte tail.
+    """
+    seg = _find_swift_typeref_segment()
+    if seg is None:
+        return 0
+
+    # Wipe any prior items and per-address tinfo so previously-mistyped bytes
+    # don't keep their old autocomments after we re-apply string types.
+    seg_size = seg.end_ea - seg.start_ea
+    ida_bytes.del_items(seg.start_ea, ida_bytes.DELIT_SIMPLE, seg_size)
+    for clear_ea in range(seg.start_ea, seg.end_ea):
+        ida_nalt.del_tinfo(clear_ea)
+
+    count = 0
+    ea = seg.start_ea
+    while ea < seg.end_ea:
+        if ida_bytes.get_byte(ea) == 0:
+            ea += 1
+            continue
+
+        start = ea
+        while ea < seg.end_ea:
+            b = ida_bytes.get_byte(ea)
+            if b == 0:
+                break
+            if 0x01 <= b <= 0x17:
+                # symbolic-reference marker → skip the 1-byte marker + 4-byte offset.
+                ea += 5
+            else:
+                ea += 1
+        # Include the terminating NULL if it's in-section.
+        length = ea - start + (1 if ea < seg.end_ea else 0)
+
+        if ida_bytes.create_strlit(start, length, idc.STRTYPE_C):
+            count += 1
+        ea += 1
+
+    print(f"[swift-types] Marked {count} mangled-name strings in {seg.name}")
+    return count
+
+
 def fix_swift_types() -> None:
     tif.create_from_c_decl(DECLS)
 
@@ -511,6 +571,7 @@ def fix_swift_types() -> None:
         if (ea := memory.ea_from_name(name)) is not None:
             idc.SetType(ea, sig)
 
+    apply_swift_typeref_strings()
     apply_swift_class_call_to_all_functions()
 
 
