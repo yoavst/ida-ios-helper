@@ -118,6 +118,7 @@ typedef struct SwiftValueWitnessTable {
     // 0x54
     uint32_t extraInhabitantCount;
 } SwiftValueWitnessTable;
+
 """
 
 FUNCTIONS_SIGNATURES = {

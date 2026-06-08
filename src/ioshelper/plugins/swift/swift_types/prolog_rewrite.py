@@ -17,9 +17,14 @@ This hook walks the cfunc and renames:
 Lvars the user has already renamed/typed are left alone.
 """
 
+import ida_bytes
+import ida_frame
+import ida_funcs
 import ida_hexrays
 import ida_name
+import ida_netnode
 import ida_typeinf
+import idaapi
 import idc
 
 _TYPE_METADATA_ACCESSOR_PREFIX = "type metadata accessor for "
@@ -514,6 +519,401 @@ def _apply_buf_rewrites(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa: C901
     return changes
 
 
+_DYN_ALLOCA_NETNODE = "$ ioshelper.swift_dyn_alloca_frsize"
+
+
+def _mark_cfunc_dirty(ea: int) -> None:
+    if not hasattr(ida_hexrays, "mark_cfunc_dirty"):
+        return
+    try:
+        ida_hexrays.mark_cfunc_dirty(ea, False)
+    except TypeError:
+        ida_hexrays.mark_cfunc_dirty(ea)
+
+
+def _flush_cfunc(ea: int) -> None:
+    """Invalidate the cached cfunc for `ea` so the next decompile rebuilds
+    against the now-current prototype. Do NOT use `clear_cached_cfuncs` — it
+    nukes the entire cfunc cache, and the next decompile re-triggers our
+    hooks, which can flush again, cascading into a decompile loop on binaries
+    with many closure-taking sites (e.g. searchpartyd)."""
+    _mark_cfunc_dirty(ea)
+
+
+def _detect_swift_dynamic_alloca_size(func: ida_funcs.func_t) -> int:
+    """Total bytes the function allocates dynamically on the stack via Swift's
+    `mov xN, sp; sub xM, xN, #K; mov sp, xM` idiom (the alloca pattern that
+    closure contexts for `dispatch_queue.sync(execute:)` and similar APIs
+    use). Returns 0 if no dynamic allocas detected."""
+    total = 0
+    ea = func.start_ea
+    while ea != idaapi.BADADDR and ea < func.end_ea:
+        if not ida_bytes.is_code(ida_bytes.get_flags(ea)):
+            ea = idc.next_head(ea, func.end_ea)
+            continue
+        mnem = idc.print_insn_mnem(ea).upper()
+        if mnem == "SUB":
+            dst = idc.print_operand(ea, 0).replace(" ", "").upper()
+            src = idc.print_operand(ea, 1).replace(" ", "").upper()
+            imm = idc.get_operand_value(ea, 2)
+            if imm > 0 and dst != "SP" and dst.startswith("X") and src.startswith("X") and src != "SP":
+                # `sub xM, xN, #K` — verify the surrounding alloca shape:
+                # preceded by `mov xN, sp` and followed by `mov sp, xM`.
+                prev = idc.prev_head(ea)
+                nxt = idc.next_head(ea, func.end_ea)
+                if (
+                    idc.print_insn_mnem(prev).upper() == "MOV"
+                    and idc.print_operand(prev, 0).replace(" ", "").upper() == src
+                    and idc.print_operand(prev, 1).replace(" ", "").upper() == "SP"
+                    and idc.print_insn_mnem(nxt).upper() == "MOV"
+                    and idc.print_operand(nxt, 0).replace(" ", "").upper() == "SP"
+                    and idc.print_operand(nxt, 1).replace(" ", "").upper() == dst
+                ):
+                    total += imm
+        ea = idc.next_head(ea, func.end_ea)
+    return total
+
+
+def _expand_frame_for_swift_dynamic_allocas(func: ida_funcs.func_t) -> bool:
+    """Grow `func`'s static frame to include Swift dynamic-alloca regions so
+    hex-rays renders closure contexts (e.g. for `dispatch_queue.sync(execute:)`)
+    as proper local variables rather than negative offsets like `&v24[-48]`.
+
+    Without this, the compiler-emitted `mov xN, sp; sub xM, xN, #K; mov sp, xM`
+    drops SP below the static frame just before the closure-taking call, and
+    hex-rays renders the writes to that region as `*(_QWORD *)&v24[-32] = …`
+    with the call seeing `&v24[-48]` as its closure-context pointer. Growing
+    the static frame by K folds the dynamic region into the static layout —
+    the same writes then decompile as `v26[2] = …` with the call seeing
+    `v26` (a proper local) as the closure context.
+
+    Idempotency via a per-function netnode that records the adjustment we
+    applied. Re-running this on a function we've already grown is a no-op.
+    """
+    delta = _detect_swift_dynamic_alloca_size(func)
+    if delta == 0:
+        return False
+
+    nn = ida_netnode.netnode()
+    nn.create(_DYN_ALLOCA_NETNODE)
+    prev_delta = nn.altval(func.start_ea)
+    if prev_delta == delta:
+        return False  # already adjusted by exactly this amount
+
+    # If a previous (smaller) adjustment is on record, subtract it first so we
+    # don't double-count. Otherwise add the full delta to the current frsize.
+    target_frsize = func.frsize - prev_delta + delta
+    if target_frsize == func.frsize:
+        return False
+    if not ida_frame.set_frame_size(func, target_frsize, func.frregs, func.argsize):
+        return False
+    nn.altset(func.start_ea, delta)
+    print(f"[swift-prolog] grew frame of {func.start_ea:X} by {delta - prev_delta} bytes for dynamic alloca")
+    return True
+
+
+# API name → (closure-body-fn arg index, captures-context arg index).
+# These are the Swift functions that take a stack-allocated captures buffer
+# along with a function pointer to invoke against it.
+_SWIFT_CLOSURE_TAKING_APIS = {
+    # OS_dispatch_queue.sync(execute:): (sret, queue, fn, ctx, returnType)
+    "_$sSo17OS_dispatch_queueC8DispatchE4sync7executexxyKXE_tKlF": (2, 3),
+    # OS_dispatch_queue.sync(flags:execute:): (sret, queue, flags, fn, ctx, returnType)
+    "_$sSo17OS_dispatch_queueC8DispatchE4sync5flags7executexAC0D13WorkItemFlagsV_xyKXEtKlF": (3, 4),
+}
+
+
+_CLOSURE_CTX_NAME_PREFIX = "ClosureCtx_"
+
+
+def _is_closure_taking_call(call_expr) -> tuple[int, int] | None:
+    """If `call_expr` calls a known closure-taking Swift API, return
+    (fn_arg_idx, captures_arg_idx); else None."""
+    if call_expr is None or call_expr.op != ida_hexrays.cot_call:
+        return None
+    callee = call_expr.x
+    if callee is None or callee.op != ida_hexrays.cot_obj:
+        return None
+    name = idc.get_name(callee.obj_ea) or ""
+    return _SWIFT_CLOSURE_TAKING_APIS.get(name)
+
+
+def _ensure_closure_ctx_struct(name: str, slot_count: int) -> ida_typeinf.tinfo_t | None:
+    """Look up the per-callsite `ClosureCtx_<…>` struct by `name`, creating
+    a default-layout one (`_QWORD sN` for N slots) if it doesn't exist yet.
+    Returns a `tinfo_t` for the struct or None on failure.
+
+    The default layout is just the starting point — the user is expected to
+    edit the struct in Local Types (Shift+F1) to combine slots into proper
+    Swift types (e.g. merge `s3`+`s4` into a single `Swift::String s_str`),
+    rename fields, etc. Once edited, this function leaves the user's
+    definition alone."""
+    existing = ida_typeinf.tinfo_t()
+    if existing.get_named_type(None, name):
+        return existing
+
+    fields = "; ".join(f"_QWORD s{i}" for i in range(slot_count))
+    decl = f"struct {name} {{ {fields}; }};"
+    new_ti = ida_typeinf.tinfo_t()
+    if not ida_typeinf.parse_decl(new_ti, None, decl, ida_typeinf.PT_SIL):
+        return None
+    if new_ti.set_named_type(None, name) != ida_typeinf.TERR_OK:
+        return None
+    out = ida_typeinf.tinfo_t()
+    if not out.get_named_type(None, name):
+        return None
+    return out
+
+
+def _closure_ctx_struct_name(call_ea: int) -> str:
+    """Per-callsite unique struct name keyed off the closure-taking call's
+    EA. Stable across re-decompiles (lvar display names like `v26` shift
+    around at different maturities; the call-site EA does not). Each
+    closure context lives in its own struct so the user can edit one
+    without affecting others."""
+    return f"{_CLOSURE_CTX_NAME_PREFIX}{call_ea:08X}"
+
+
+_CLOSURE_BODY_NETNODE = "$ ioshelper.swift_closure_body_captures"
+
+
+_TRAMPOLINE_MAX_BYTES = 32  # 8 ARM64 instructions, enough for pacibsp + 1 BL + retab + a couple movs
+
+
+def _record_closure_body_struct(body_ea: int, struct_name: str) -> None:
+    """Persist `body_ea -> struct_name` and eager-apply the captures arg if
+    the body is a short PAC trampoline.
+
+    Why size-gated: a generous eager-apply (commit d3bf1f0) tripped hex-rays
+    INTERR 52236 on real-world large bodies (searchpartyd) whose prototype
+    couldn't accept an X20 arg without contradicting hex-rays' own register-
+    use inference. Tiny trampolines (e.g. ReportCrash sub_100031888 — a
+    1-BL wrapper around the real body) don't have meaningful inference yet
+    and benefit most from the eager apply (their first F5 lands stale
+    otherwise). The lazy `_type_closure_body_x20_lvar` covers larger bodies.
+    """
+    nn = ida_netnode.netnode(_CLOSURE_BODY_NETNODE, 0, True)
+    nn.supset(body_ea, struct_name)
+    func = ida_funcs.get_func(body_ea)
+    if func is not None and (func.end_ea - func.start_ea) <= _TRAMPOLINE_MAX_BYTES:
+        _apply_captures_arg_to_body(body_ea, struct_name)
+    _mark_cfunc_dirty(body_ea)
+
+
+def _apply_captures_arg_to_body(body_ea: int, struct_name: str) -> bool:
+    """Append `<struct_name> *captures@<X20>` to the body's stored prototype.
+    Synthesizes a minimal `__int64 __usercall f@<X0>(_BYTE *x8@<X8>, captures@<X20>)`
+    when no IDB type exists — only safe for trampoline-shaped bodies; gated by
+    size in the single caller."""
+    import ida_nalt
+
+    x20_proc = _reg_x20()
+    if x20_proc is None:
+        return False
+    ptr_ti = ida_typeinf.tinfo_t()
+    if not ida_typeinf.parse_decl(ptr_ti, None, f"{struct_name} *x;", ida_typeinf.PT_SIL):
+        return False
+    ti = ida_typeinf.tinfo_t()
+    if not ida_nalt.get_tinfo(ti, body_ea) or not ti.is_func():
+        if not ida_typeinf.parse_decl(
+            ti,
+            None,
+            f"__int64 __usercall f@<X0>(_BYTE *x8@<X8>, {struct_name} *captures@<X20>);",
+            ida_typeinf.PT_SIL,
+        ):
+            return False
+        return bool(ida_typeinf.apply_tinfo(body_ea, ti, ida_typeinf.TINFO_DEFINITE))
+    fti = ida_typeinf.func_type_data_t()
+    if not ti.get_func_details(fti):
+        return False
+    for i in range(fti.size()):
+        try:
+            if fti[i].argloc.is_reg1() and fti[i].argloc.reg1() == x20_proc:
+                return False
+        except Exception:  # noqa: S110
+            pass
+    arg = ida_typeinf.funcarg_t()
+    arg.type = ptr_ti
+    arg.name = "captures"
+    arg.argloc.set_reg1(x20_proc)
+    fti.push_back(arg)
+    fti.set_cc(ida_typeinf.CM_CC_SPECIAL)
+    new_ti = ida_typeinf.tinfo_t()
+    if not new_ti.create_func(fti):
+        return False
+    return bool(ida_typeinf.apply_tinfo(body_ea, new_ti, ida_typeinf.TINFO_DEFINITE))
+
+
+def _lookup_closure_body_struct(body_ea: int) -> str | None:
+    nn = ida_netnode.netnode(_CLOSURE_BODY_NETNODE)
+    if nn == idaapi.BADADDR:
+        return None
+    val = nn.supstr(body_ea)
+    return val or None
+
+
+def _type_closure_body_x20_lvar(cfunc: ida_hexrays.cfunc_t) -> bool:  # noqa: C901
+    """If `cfunc` is the body of a known closure call site, append
+    `<struct_name> *captures@<X20>` to its prototype — taking the
+    *current cfunc's* inferred `func_type_data_t` as the starting point
+    so any sret slot / inferred args (e.g. the `_BYTE *@<X8>` ReportCrash
+    body has) are preserved verbatim.
+
+    Doing this from `cfunc.get_func_type` rather than `idc.get_type` is the
+    load-bearing part: the IDB-stored prototype may be empty (default
+    `__int64()`) while hex-rays has inferred a richer prototype from the
+    body's instruction stream — using the cfunc version captures both.
+    """
+    struct_name = _lookup_closure_body_struct(cfunc.entry_ea)
+    if struct_name is None:
+        return False
+    x20_proc = _reg_x20()
+    if x20_proc is None:
+        return False
+
+    import ida_nalt
+
+    ptr_ti = ida_typeinf.tinfo_t()
+    if not ida_typeinf.parse_decl(ptr_ti, None, f"{struct_name} *x;", ida_typeinf.PT_SIL):
+        return False
+
+    # Bail if the stored prototype already has an X20 arg — re-runs no-op.
+    cur_ti = ida_typeinf.tinfo_t()
+    if ida_nalt.get_tinfo(cur_ti, cfunc.entry_ea) and cur_ti.is_func():
+        cur_fti = ida_typeinf.func_type_data_t()
+        if cur_ti.get_func_details(cur_fti):
+            for i in range(cur_fti.size()):
+                try:
+                    if cur_fti[i].argloc.is_reg1() and cur_fti[i].argloc.reg1() == x20_proc:
+                        return False
+                except Exception:  # noqa: S110
+                    pass
+
+    ti = ida_typeinf.tinfo_t()
+    if not cfunc.get_func_type(ti) or not ti.is_func():
+        return False
+    fti = ida_typeinf.func_type_data_t()
+    if not ti.get_func_details(fti):
+        return False
+
+    arg = ida_typeinf.funcarg_t()
+    arg.type = ptr_ti
+    arg.name = "captures"
+    arg.argloc.set_reg1(x20_proc)
+    fti.push_back(arg)
+    fti.set_cc(ida_typeinf.CM_CC_SPECIAL)
+
+    new_ti = ida_typeinf.tinfo_t()
+    if not new_ti.create_func(fti):
+        return False
+    if not ida_typeinf.apply_tinfo(cfunc.entry_ea, new_ti, ida_typeinf.TINFO_DEFINITE):
+        return False
+    # The in-flight cfunc was built against the old prototype; the rendered
+    # header won't pick up the new captures arg until we evict the cached
+    # cfunc that hex-rays is about to store at end-of-decompile.
+    _flush_cfunc(cfunc.entry_ea)
+    return True
+
+
+_X20_REG_IDX: int | None = None
+
+
+def _reg_x20() -> int | None:
+    """Resolve the X20 processor register index (cached)."""
+    global _X20_REG_IDX
+    if _X20_REG_IDX is None:
+        for name in ("X20", "x20"):
+            idx = ida_idp.str2reg(name) if hasattr(ida_idp, "str2reg") else -1  # noqa: F821
+            if idx is not None and idx != -1:
+                _X20_REG_IDX = idx
+                break
+    return _X20_REG_IDX
+
+
+def _type_swift_closure_ctx_lvars(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa: C901
+    """Find stack lvars passed as the captures argument to known Swift
+    closure-taking APIs and type them as a per-callsite `ClosureCtx_<…>`
+    struct so:
+
+    * Per-slot writes render as `ctx.sN = …` (named fields),
+    * the whole-struct `ctx = _swift_closure_init(...)` collapse becomes
+      valid C (whole-array assignment trips INTERR 50708),
+    * the user can EDIT the struct in Local Types (Shift+F1) — combining
+      `s3`+`s4` into a `Swift::String s_str`, renaming slots to match
+      what the closure body actually captures, etc. — and the change
+      sticks across re-decompiles.
+
+    Each closure context gets its own struct (named by func EA + lvar
+    name), so editing one doesn't affect others.
+    """
+    typed = 0
+    lvars = cfunc.get_lvars()
+
+    class V(ida_hexrays.ctree_visitor_t):
+        def __init__(self):
+            super().__init__(ida_hexrays.CV_FAST)
+
+        def visit_expr(self, e):  # noqa: C901
+            arg_indices = _is_closure_taking_call(e)
+            if arg_indices is None:
+                return 0
+            fn_arg_idx, ctx_arg_idx = arg_indices
+            if ctx_arg_idx >= e.a.size():
+                return 0
+            arg = e.a[ctx_arg_idx]
+            inner = arg
+            while inner is not None and inner.op in (ida_hexrays.cot_cast, ida_hexrays.cot_ref):
+                inner = inner.x
+            if inner is None or inner.op != ida_hexrays.cot_var:
+                return 0
+            lv_idx = inner.v.idx
+            if lv_idx >= lvars.size():
+                return 0
+            lv = lvars[lv_idx]
+            cur_ti = lv.type()
+            cur_str = str(cur_ti)
+            lv_size = cur_ti.get_size()
+            if lv_size <= 0 or lv_size % 8 != 0:
+                return 0
+            slot_count = lv_size // 8
+            struct_name = _closure_ctx_struct_name(e.ea)
+            struct_ti = _ensure_closure_ctx_struct(struct_name, slot_count)
+            if struct_ti is None:
+                return 0
+
+            if not lv.has_user_type and not cur_str.startswith(_CLOSURE_CTX_NAME_PREFIX):  # noqa: SIM102
+                if lv.set_lvar_type(struct_ti):
+                    nonlocal typed
+                    typed += 1
+
+            # Type the closure body fn's x20 as `<struct> *captures` too, so
+            # field accesses inside the body render with the same names the
+            # user gave them at the call site. Follow the one-BL PAC
+            # trampoline through to the real body before typing.
+            # Persist mapping(s) so that when the closure body itself (or
+            # its PAC trampoline) is decompiled, `_type_closure_body_x20_lvar`
+            # retypes its x20 lvar to match. Doing the body-typing from
+            # inside the caller's hook loses any args hex-rays inferred on
+            # the body from its own call sites (x8 sret etc.).
+            if fn_arg_idx < e.a.size():
+                fn_arg = e.a[fn_arg_idx]
+                fn_inner = fn_arg
+                while fn_inner is not None and fn_inner.op in (ida_hexrays.cot_cast, ida_hexrays.cot_ref):
+                    fn_inner = fn_inner.x
+                if fn_inner is not None and fn_inner.op == ida_hexrays.cot_obj:
+                    # Type the directly-passed fn (whatever it is — could be
+                    # a PAC trampoline wrapping the body, could be the body
+                    # itself). It's the one that receives x20 from the
+                    # dispatch wrapper; that's all we need. Following the BL
+                    # chain to find the "real" body is unreliable since the
+                    # trampoline pattern isn't guaranteed across compilers.
+                    _record_closure_body_struct(fn_inner.obj_ea, struct_name)
+            return 0
+
+    V().apply_to(cfunc.body, None)
+    return typed
+
+
 class SwiftPrologRewriteHook(ida_hexrays.Hexrays_Hooks):
     """Detect the Swift opaque-storage prolog and rename the resulting `vN` lvars
     to type-derived names. Two-stage hook:
@@ -531,10 +931,43 @@ class SwiftPrologRewriteHook(ida_hexrays.Hexrays_Hooks):
     a maturity hook, so each F5 re-runs this cheap in-memory pass.
     """
 
+    def flowchart(self, fc, mba, reachable_blocks, decomp_flags) -> int:
+        # Frame-size adjustments have to land BEFORE microcode generation.
+        # The `microcode` event is too late — the mba is already built off
+        # the old frsize and growing the frame mid-flight trips INTERR
+        # 50887. The `flowchart` event runs after the flowchart is built
+        # but before microcode generation, which is the right window.
+        # `mark_cfunc_dirty` is still required so the cfunc cache (which
+        # may have been populated by an earlier decompile pass) re-reads
+        # the grown frame.
+        try:
+            if mba is None:
+                return 0
+            func = ida_funcs.get_func(mba.entry_ea)
+            if func is not None and _expand_frame_for_swift_dynamic_allocas(func):
+                _mark_cfunc_dirty(mba.entry_ea)
+        except Exception as exc:
+            try:
+                ea = mba.entry_ea if mba else 0
+            except Exception:
+                ea = 0
+            print(f"[swift-prolog] frame-grow @ {ea:X}: {exc!r}")
+        return 0
+
     def maturity(self, cfunc: ida_hexrays.cfunc_t, new_maturity: int) -> int:
         try:
             if new_maturity == ida_hexrays.CMAT_BUILT:
                 _apply_prolog_rewrites(cfunc)
+            elif new_maturity == ida_hexrays.CMAT_CPA:
+                n = _type_swift_closure_ctx_lvars(cfunc)
+                if n:
+                    print(f"[swift-prolog] typed {n} closure-ctx lvar(s) @ {cfunc.entry_ea:X}")
+                    _mark_cfunc_dirty(cfunc.entry_ea)
+                # If THIS cfunc is the body of a recorded closure call,
+                # retype its x20 lvar as the captures struct.
+                if _type_closure_body_x20_lvar(cfunc):
+                    print(f"[swift-prolog] typed closure-body captures lvar @ {cfunc.entry_ea:X}")
+                    _mark_cfunc_dirty(cfunc.entry_ea)
             elif new_maturity == ida_hexrays.CMAT_FINAL:
                 _apply_buf_rewrites(cfunc)
                 _rename_swift_error_lvars(cfunc)
@@ -543,4 +976,30 @@ class SwiftPrologRewriteHook(ida_hexrays.Hexrays_Hooks):
                 _purge_empty_statements(cfunc)
         except Exception as exc:
             print(f"[swift-prolog] {cfunc.entry_ea:X}: {exc!r}")
+        return 0
+
+    def func_printed(self, cfunc: ida_hexrays.cfunc_t) -> int:
+        # If we've stamped this function with a captures@<X20> arg but the
+        # rendered header doesn't mention it, the cfunc cache is stale — it
+        # was stored at the end of an earlier decompile that ran before
+        # `_type_closure_body_x20_lvar` got its hands on the prototype.
+        # `mark_cfunc_dirty` called from the CMAT_CPA hook gets shadowed by
+        # post-decompile storage; doing it here (after storage) sticks, so
+        # the next F5 re-decompiles against the now-current prototype.
+        try:
+            ea = cfunc.entry_ea
+            stored = idc.get_type(ea) or ""
+            if "@<X20>" not in stored or "captures" not in stored:
+                return 0
+            sv = cfunc.get_pseudocode()
+            if sv.size() == 0:
+                return 0
+            import ida_lines as _il
+
+            header = _il.tag_remove(sv[0].line) or ""
+            if "captures" in header and "X20" in header:
+                return 0
+            _flush_cfunc(ea)
+        except Exception:  # noqa: S110
+            pass
         return 0
