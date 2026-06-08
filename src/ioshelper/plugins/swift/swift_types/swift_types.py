@@ -1,3 +1,5 @@
+import contextlib
+
 import ida_bytes
 import ida_funcs
 import ida_hexrays
@@ -10,15 +12,6 @@ from idahelper import file_format, memory, tif
 DECLS = """
 typedef long long s64;
 typedef unsigned long long u64;
-
-typedef s64 Int;
-typedef u64 Bool;
-
-struct Swift::String
-{
-  u64 _countAndFlagsBits;
-  void *_object;
-};
 
 union Swift_ElementAny {
     Swift::String stringElement;
@@ -34,19 +27,111 @@ struct Swift_ArrayAny {
     s64 length;
     Swift_Any *items;
 };
+
+typedef void *MetadataPtr;
+typedef void *OpaqueValuePtr;
+typedef void *ValueBufferPtr;
+
+typedef ValueBufferPtr (*InitializeBufferWithCopyOfBufferFn)(
+    ValueBufferPtr dest,
+    ValueBufferPtr src,
+    MetadataPtr type
+);
+
+typedef void (*DestroyFn)(
+    OpaqueValuePtr object,
+    MetadataPtr type
+);
+
+typedef OpaqueValuePtr (*InitializeWithCopyFn)(
+    OpaqueValuePtr dest,
+    OpaqueValuePtr src,
+    MetadataPtr type
+);
+
+typedef OpaqueValuePtr (*AssignWithCopyFn)(
+    OpaqueValuePtr dest,
+    OpaqueValuePtr src,
+    MetadataPtr type
+);
+
+typedef OpaqueValuePtr (*InitializeWithTakeFn)(
+    OpaqueValuePtr dest,
+    OpaqueValuePtr src,
+    MetadataPtr type
+);
+
+typedef OpaqueValuePtr (*AssignWithTakeFn)(
+    OpaqueValuePtr dest,
+    OpaqueValuePtr src,
+    MetadataPtr type
+);
+
+typedef unsigned int (*GetEnumTagSinglePayloadFn)(
+    OpaqueValuePtr object,
+    unsigned int emptyCases,
+    MetadataPtr type
+);
+
+typedef void (*StoreEnumTagSinglePayloadFn)(
+    OpaqueValuePtr object,
+    unsigned int tag,
+    unsigned int emptyCases,
+    MetadataPtr type
+);
+
+typedef struct SwiftValueWitnessTable {
+    // 0x00
+    InitializeBufferWithCopyOfBufferFn initializeBufferWithCopyOfBuffer;
+
+    // 0x08
+    DestroyFn destroy;
+
+    // 0x10
+    InitializeWithCopyFn initializeWithCopy;
+
+    // 0x18
+    AssignWithCopyFn assignWithCopy;
+
+    // 0x20
+    InitializeWithTakeFn initializeWithTake;
+
+    // 0x28
+    AssignWithTakeFn assignWithTake;
+
+    // 0x30
+    GetEnumTagSinglePayloadFn getEnumTagSinglePayload;
+
+    // 0x38
+    StoreEnumTagSinglePayloadFn storeEnumTagSinglePayload;
+
+    // 0x40
+    uint64_t size;
+
+    // 0x48
+    uint64_t stride;
+
+    // 0x50
+    uint32_t flags;
+
+    // 0x54
+    uint32_t extraInhabitantCount;
+} SwiftValueWitnessTable;
 """
 
 FUNCTIONS_SIGNATURES = {
+    # General
+    "___chkstk_darwin": "void __fastcall __chkstk_darwin(_QWORD)",
     # Base runtime
     "_swift_allocObject": "id *__fastcall swift_allocObject(void *metadata, size_t requiredSize, size_t requiredAlignmentMask)",
     # Dispatch
     "_$sSo17OS_dispatch_queueC8DispatchE5label3qos10attributes20autoreleaseFrequency6targetABSS_AC0D3QoSVAbCE10AttributesVAbCE011AutoreleaseI0OABSgtcfC": "__int64 __fastcall OS_dispatch_queue_init_label_qos_attributes_autoreleaseFrequency_target__(Swift::String label, _QWORD qos, _QWORD attributes, _QWORD frequency, _QWORD target)",
-    "_$sSo17OS_dispatch_queueC8DispatchE4sync7executexxyKXE_tKlF": "_QWORD *__swiftClassCall OS_dispatch_queue_sync_A__execute__(_QWORD *__return_ptr, void *dispatchQueue, void *cb, id params, void *returnType)",
-    "_$sSo17OS_dispatch_queueC8DispatchE4sync5flags7executexAC0D13WorkItemFlagsV_xyKXEtKlF": "_QWORD *__swiftClassCall OS_dispatch_queue_sync_A_flags_execute__(_QWORD *__return_ptr, void *dispatchQueue, int flags, void *cb, id params, void *returnType)",
+    "_$sSo17OS_dispatch_queueC8DispatchE4sync7executexxyKXE_tKlF": "_QWORD *__swiftcall OS_dispatch_queue_sync_A__execute__(_QWORD *__return_ptr, void *dispatchQueue, void *cb, id params, void *returnType)",
+    "_$sSo17OS_dispatch_queueC8DispatchE4sync5flags7executexAC0D13WorkItemFlagsV_xyKXEtKlF": "_QWORD *__swiftcall OS_dispatch_queue_sync_A_flags_execute__(_QWORD *__return_ptr, void *dispatchQueue, int flags, void *cb, id params, void *returnType)",
     # Foundation.URL
     "_$s10Foundation3URLV6stringACSgSSh_tcfC": "void __swiftcall URL_init_string__(__int64 *__return_ptr, Swift::String url)",
-    "_$s10Foundation3URLV4pathSSvg": "Swift::String __swiftClassCall URL_path_getter(void *self)",
-    "_$s10Foundation3URLV22appendingPathComponentyACSSF": "__int64 __swiftClassCall URL_appendingPathComponent____(void *self, Swift::String component)",
+    "_$s10Foundation3URLV4pathSSvg": "Swift::String __swiftcall URL_path_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV22appendingPathComponentyACSSF": "__int64 __swiftcall URL_appendingPathComponent____(void *__swiftself self, Swift::String component)",
     # print()
     "_$ss5print_9separator10terminatoryypd_S2StF": "void __fastcall print___separator_terminator__(Swift_ArrayAny *, Swift::String, Swift::String)",
     "_$ss10debugPrint_9separator10terminatoryypd_S2StFfA0_": "Swift::String default_argument_1_of_debugPrint___separator_terminator__(void)",
@@ -65,14 +150,14 @@ FUNCTIONS_SIGNATURES = {
     "___swift_allocate_value_buffer": "void *__fastcall __swift_allocate_value_buffer(void *typeInfo, void **pObject)",
     "___swift_project_value_buffer": "__int64 __fastcall __swift_project_value_buffer(void *typeInfo, void *object)",
     # String operations
-    "_$sSS6appendyySSF": "Swift::Void __swiftClassCall String_append____(id, Swift::String);",
-    "_$ss11_StringGutsV4growyySiF": "Swift::Void __swiftClassCall _StringGuts_grow____(id, Swift::Int);",
-    "_$ss23CustomStringConvertibleP11descriptionSSvgTj": "Swift::String __swiftClassCall dispatch_thunk_of_CustomStringConvertible_description_getter(id obj, id typeMetadata, id protocolWitness);",
+    "_$sSS6appendyySSF": "Swift::Void __swiftcall String_append____(id, Swift::String);",
+    "_$ss11_StringGutsV4growyySiF": "Swift::Void __swiftcall _StringGuts_grow____(id, Swift::Int);",
+    "_$ss23CustomStringConvertibleP11descriptionSSvgTj": "Swift::String __swiftcall dispatch_thunk_of_CustomStringConvertible_description_getter(id obj, id typeMetadata, id protocolWitness);",
     "_$ss27_stringCompareWithSmolCheck__9expectingSbs11_StringGutsV_ADs01_G16ComparisonResultOtF": "__int64 __fastcall _stringCompareWithSmolCheck_____expecting__(Swift::String, Swift::String, _QWORD)",
     "_$sSS9hasPrefixySbSSF": "Swift::Bool __swiftcall String_hasPrefix____(Swift::String, Swift::String)",
     "_$sSS12ProxymanCoreE5toSHASSSgyF": "Swift::String_optional __swiftcall String_toSHA__(Swift::String)",
     "_$sSy10FoundationE4data5using20allowLossyConversionAA4DataVSgSSAAE8EncodingV_SbtF": "Swift::String __fastcall StringProtocol_data_using_allowLossyConversion__(_QWORD, _QWORD, _QWORD, _QWORD);",
-    "_$sSS5countSivg": "__int64 __swiftClassCall String_count_getter(void *self, Swift::String)",
+    "_$sSS5countSivg": "__int64 __swiftcall String_count_getter(void *__swiftself self, Swift::String)",
     "_$sSS10FoundationE10contentsOf8encodingSSAA3URLVh_SSAAE8EncodingVtKcfC": "Swift::String __usercall __spoils<X21> String_init_contentsOf_encoding__@<X0:X1>(Swift::String@<X0:X1>)",
     # Data operations
     "_$s10Foundation4DataV11referencingACSo6NSDataCh_tcfC": "Swift::String __fastcall Data_init_referencing__(_QWORD)",
@@ -82,7 +167,7 @@ FUNCTIONS_SIGNATURES = {
     "_$ss26DefaultStringInterpolationV15literalCapacity18interpolationCountABSi_SitcfC": "Swift::String __swiftcall __spoils<X8> DefaultStringInterpolation_init_literalCapacity_interpolationCount__(_QWORD, _QWORD)",
     "_$sSS19stringInterpolationSSs013DefaultStringB0V_tcfC": "Swift::String __fastcall String_init_stringInterpolation__(Swift::String)",
     # Dictionary operations
-    "_$sSDyq_Sgxcig": "_QWORD *__swiftClassCall Dictionary_subscript_getter(_QWORD *__return_ptr a1, id object, Swift::String key)",
+    "_$sSDyq_Sgxcig": "_QWORD *__swiftcall Dictionary_subscript_getter(_QWORD *__return_ptr a1, id object, Swift::String key)",
 }
 
 
@@ -276,13 +361,19 @@ def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
 
     func_details = tif.get_func_details(func)
     if func_details is None:
-        return bool(idc.SetType(func.start_ea, "id __swiftClassCall (id self)"))
+        return bool(idc.SetType(func.start_ea, f"id __swiftcall {func_name}(id __swiftself self)"))
 
+    # No user/stored prototype yet — `get_func_details` can succeed off a
+    # hex-rays *guessed* type that was never written to the IDB. Same
+    # outcome as `func_details is None`: write a default `__swiftClassCall
+    # (id self)` rather than no-op.
     current_type = idc.get_type(func.start_ea)
     if current_type is None:
-        return False
+        return bool(idc.SetType(func.start_ea, f"id __swiftcall {func_name}(id __swiftself self)"))
 
-    for cc in ("__swiftClassCall", "__fastcall", "__cdecl", "__stdcall", "__vectorcall"):
+    already_typed = "__swiftself" in current_type or "__swiftClassCall" in current_type
+
+    for cc in ("__swiftClassCall", "__swiftcall", "__fastcall", "__cdecl", "__stdcall", "__vectorcall"):
         # Strip current CC from the current type
         current_type = current_type.replace(cc, "")
 
@@ -294,9 +385,16 @@ def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
     else:
         return_type, post_open_brackets = current_type.split(f"{func_name}(", 1)
     original_args = [arg.strip() for arg in post_open_brackets.split(")", 1)[0].split(",") if arg.strip()]
+
+    # If the user already set __swiftClassCall with at least one argument, trust their
+    # first arg as the (possibly concretely-typed) self pointer — don't prepend `id self`.
+    if already_typed and original_args:
+        return False
+
     first_arg = original_args[0] if original_args else ""
-    new_args = original_args if first_arg.startswith("id self") or first_arg == "id" else ["id self", *original_args]
-    new_type = f"{return_type} __swiftClassCall {func_name}({', '.join(new_args)})"
+    has_self = "__swiftself" in first_arg or first_arg.startswith("id self") or first_arg == "id"
+    new_args = original_args if has_self else ["id __swiftself self", *original_args]
+    new_type = f"{return_type} __swiftcall {func_name}({', '.join(new_args)})"
     if not idc.SetType(func.start_ea, new_type):
         return False
     print(f"[swift-types] {new_type}")
@@ -326,10 +424,40 @@ def optimize_swift_class_call(func_ea: int) -> bool:
     return _apply_swift_class_call_signature(func)
 
 
+class _FuncCreatedIDBHook(idaapi.IDB_Hooks):
+    """Apply `__swiftClassCall` as soon as IDA recognizes a new function with
+    the x20-incoming-arg prolog. Without this, functions discovered AFTER
+    `fix_swift_types`'s startup scan (e.g. when hex-rays decompiles a caller
+    that branches to a previously-undefined sub) get their type applied
+    lazily by the maturity hook — too late to affect the first F5's render.
+    """
+
+    def func_added(self, func) -> int:
+        try:
+            if optimize_swift_class_call(func.start_ea):
+                _mark_cfunc_dirty(func.start_ea)
+        except Exception:  # noqa: S110
+            pass
+        return 0
+
+
 class SwiftClassCallHook(ida_hexrays.Hexrays_Hooks):
     def __init__(self):
         super().__init__()
         register_calling_convention()
+        # Pair the hex-rays hook with the IDB hook so newly-created funcs
+        # get typed immediately. Kept on the instance so hook()/unhook()
+        # control both lifecycles together.
+        self._idb_hook = _FuncCreatedIDBHook()
+
+    def hook(self) -> bool:
+        self._idb_hook.hook()
+        return super().hook()
+
+    def unhook(self) -> bool:
+        with contextlib.suppress(Exception):
+            self._idb_hook.unhook()
+        return super().unhook()
 
     def maturity(self, cfunc: ida_hexrays.cfunc_t, new_maturity: int) -> int:
         # Retry registration in case module-import time was too early.
@@ -346,6 +474,33 @@ class SwiftClassCallHook(ida_hexrays.Hexrays_Hooks):
             _mark_cfunc_dirty(func_ea)
         return 0
 
+    def func_printed(self, cfunc: ida_hexrays.cfunc_t) -> int:
+        # If the IDB now stores `__swiftClassCall` but the cfunc we just
+        # printed doesn't reflect it, invalidate post-decompile so the next
+        # F5 actually re-runs the decompile. `mark_cfunc_dirty` called from
+        # the maturity hook fires *inside* the in-flight decompile — the
+        # cfunc gets stored after that point and the dirty bit gets cleared
+        # by the storage, so the cache hands back the stale cfunc on every
+        # subsequent F5 in the same session. Marking dirty in `func_printed`
+        # runs after storage, so it sticks.
+        try:
+            ea = cfunc.entry_ea
+            stored = idc.get_type(ea) or ""
+            if "__swiftself" not in stored and "__swiftClassCall" not in stored:
+                return 0
+            sv = cfunc.get_pseudocode()
+            if sv.size() == 0:
+                return 0
+            import ida_lines as _il
+
+            header = _il.tag_remove(sv[0].line) or ""
+            if "__swiftself" in header or "__swiftClassCall" in header:
+                return 0
+            _mark_cfunc_dirty(ea)
+        except Exception:  # noqa: S110
+            pass
+        return 0
+
 
 def fix_swift_types() -> None:
     tif.create_from_c_decl(DECLS)
@@ -355,3 +510,31 @@ def fix_swift_types() -> None:
     for name, sig in FUNCTIONS_SIGNATURES.items():
         if (ea := memory.ea_from_name(name)) is not None:
             idc.SetType(ea, sig)
+
+    apply_swift_class_call_to_all_functions()
+
+
+def apply_swift_class_call_to_all_functions() -> int:
+    """Pre-apply `__swiftClassCall (id self)` to every function whose prolog
+    uses x20 as an incoming arg.
+
+    Without this, when hex-rays first decompiles such a function (e.g. when
+    the user navigates to it after viewing a caller), the maturity hook
+    applies the type DURING that decompile — too late to influence the
+    rendered header. The first F5 then shows `void *sub_X()` even though
+    the stored type already says `__swiftClassCall(id self)`, requiring a
+    second F5 to refresh.
+
+    Doing the apply once up-front, before any decompile, means hex-rays
+    reads the right prototype from the start. The hook stays installed as
+    a backstop for any function that escaped the startup scan.
+    """
+    import idautils
+
+    count = 0
+    for func_ea in idautils.Functions():
+        if optimize_swift_class_call(func_ea):
+            count += 1
+    if count:
+        print(f"[swift-types] Pre-applied __swiftself to {count} x20-prolog functions")
+    return count
