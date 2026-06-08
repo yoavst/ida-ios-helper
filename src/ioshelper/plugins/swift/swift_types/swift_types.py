@@ -29,6 +29,29 @@ struct Swift_ArrayAny {
     Swift_Any *items;
 };
 
+// Swift collection value types — single 8-byte storage pointer (a refcounted
+// class instance) regardless of element type. Optional<T> for these is
+// nil-as-zero, same layout, so `Set<String>?` etc. fit the same shape.
+struct Swift_Set {
+    void *_storage;
+};
+struct Swift_Dictionary {
+    void *_storage;
+};
+struct Swift_Array {
+    void *_storage;
+};
+
+// Dispatch types — Swift exposes them as `__C.OS_dispatch_<kind>`. IDA's ObjC
+// loader registers the ObjC class refs but not always a typedef the parser
+// can use in field decls, so we define lightweight pointer aliases here.
+typedef void *OS_dispatch_queue;
+typedef void *OS_dispatch_group;
+typedef void *OS_dispatch_semaphore;
+typedef void *OS_dispatch_source;
+typedef void *OS_dispatch_data;
+typedef void *OS_dispatch_object;
+
 typedef void *MetadataPtr;
 typedef void *OpaqueValuePtr;
 typedef void *ValueBufferPtr;
