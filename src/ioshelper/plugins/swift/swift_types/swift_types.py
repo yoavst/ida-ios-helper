@@ -124,7 +124,134 @@ FUNCTIONS_SIGNATURES = {
     # General
     "___chkstk_darwin": "void __fastcall __chkstk_darwin(_QWORD)",
     # Base runtime
+    # Swift runtime — allocation / deallocation
     "_swift_allocObject": "id *__fastcall swift_allocObject(void *metadata, size_t requiredSize, size_t requiredAlignmentMask)",
+    "_swift_deallocObject": "void __fastcall swift_deallocObject(id object, size_t allocatedSize, size_t allocatedAlignMask)",
+    "_swift_initStackObject": "id __fastcall swift_initStackObject(void *metadata, id object)",
+    "_swift_initStaticObject": "id __fastcall swift_initStaticObject(void *metadata, id object)",
+    "_swift_allocBox": "id *__fastcall swift_allocBox(void *metadata)",
+    "_swift_deallocBox": "void __fastcall swift_deallocBox(id box)",
+    "_swift_projectBox": "void *__fastcall swift_projectBox(id box)",
+    "_swift_slowAlloc": "void *__fastcall swift_slowAlloc(size_t size, size_t alignMask)",
+    "_swift_slowDealloc": "void __fastcall swift_slowDealloc(void *ptr, size_t size, size_t alignMask)",
+    "_swift_setDeallocating": "void __fastcall swift_setDeallocating(id object)",
+    "_swift_deallocClassInstance": "void __fastcall swift_deallocClassInstance(id object, size_t allocatedSize, size_t allocatedAlignMask)",
+    "_swift_deallocPartialClassInstance": "void __fastcall swift_deallocPartialClassInstance(id object, void *metadata, size_t allocatedSize, size_t allocatedAlignMask)",
+    "_swift_isUniquelyReferenced_nonNull_native": "Swift::Bool __fastcall swift_isUniquelyReferenced_nonNull_native(id object)",
+    "_swift_isUniquelyReferencedNonObjC_nonNull": "Swift::Bool __fastcall swift_isUniquelyReferencedNonObjC_nonNull(id object)",
+    # Swift runtime — ARC (generic objects, swift-native heap)
+    "_swift_retain": "id __fastcall swift_retain(id object)",
+    "_swift_release": "void __fastcall swift_release(id object)",
+    "_swift_retain_n": "id __fastcall swift_retain_n(id object, uint32_t n)",
+    "_swift_release_n": "void __fastcall swift_release_n(id object, uint32_t n)",
+    "_swift_unknownObjectRetain": "id __fastcall swift_unknownObjectRetain(id object)",
+    "_swift_unknownObjectRelease": "void __fastcall swift_unknownObjectRelease(id object)",
+    "_swift_unknownObjectRetain_n": "id __fastcall swift_unknownObjectRetain_n(id object, uint32_t n)",
+    "_swift_unknownObjectRelease_n": "void __fastcall swift_unknownObjectRelease_n(id object, uint32_t n)",
+    "_swift_bridgeObjectRetain_n": "id __fastcall swift_bridgeObjectRetain_n(id object, uint32_t n)",
+    "_swift_bridgeObjectRelease_n": "void __fastcall swift_bridgeObjectRelease_n(id object, uint32_t n)",
+    # Swift runtime — type system
+    "_swift_dynamicCast": "Swift::Bool __fastcall swift_dynamicCast(void *dest, void *src, void *srcType, void *destType, uint32_t flags)",
+    "_swift_dynamicCastClass": "id __fastcall swift_dynamicCastClass(id object, void *targetType)",
+    "_swift_dynamicCastUnknownClass": "id __fastcall swift_dynamicCastUnknownClass(id object, void *targetType)",
+    "_swift_dynamicCastMetatype": "void *__fastcall swift_dynamicCastMetatype(void *srcMetatype, void *targetMetatype)",
+    "_swift_getObjectType": "void *__fastcall swift_getObjectType(id object)",
+    "_swift_getWitnessTable": "void *__fastcall swift_getWitnessTable(void *conformance, void *type, void **conditionalArgs)",
+    "_swift_getObjCClassMetadata": "void *__fastcall swift_getObjCClassMetadata(Class cls)",
+    "_swift_getObjCClassFromMetadata": "Class __fastcall swift_getObjCClassFromMetadata(void *metadata)",
+    "_swift_getInitializedObjCClass": "Class __fastcall swift_getInitializedObjCClass(Class cls)",
+    "_swift_getTypeByMangledNameInContext": "void *__fastcall swift_getTypeByMangledNameInContext(const char *name, size_t nameLength, void *context, void **genericArgs)",
+    "_swift_getTypeByMangledNameInContext2": "void *__fastcall swift_getTypeByMangledNameInContext2(const char *name, size_t nameLength, void *context, void **genericArgs)",
+    # Swift runtime — errors
+    "_swift_errorRetain": "id __fastcall swift_errorRetain(id error)",
+    "_swift_errorRelease": "void __fastcall swift_errorRelease(id error)",
+    "_swift_willThrow": "void __fastcall swift_willThrow(id error)",
+    "_swift_willThrowTypedImpl": "void __fastcall swift_willThrowTypedImpl(void *value, void *type, void *witness)",
+    "_swift_unexpectedError": "void __fastcall swift_unexpectedError(id error)",  # __attribute__((noreturn))
+    # Swift runtime — arrays / collections
+    "_swift_arrayDestroy": "void __fastcall swift_arrayDestroy(void *array, size_t count, void *metadata)",
+    "_swift_arrayInitWithCopy": "void __fastcall swift_arrayInitWithCopy(void *dest, void *src, size_t count, void *metadata)",
+    "_swift_arrayInitWithTakeNoAlias": "void __fastcall swift_arrayInitWithTakeNoAlias(void *dest, void *src, size_t count, void *metadata)",
+    # Swift runtime — misc
+    "_swift_once": "void __fastcall swift_once(void *predicate, void (*func)(void *), void *context)",
+    "_swift_deletedMethodError": "void __fastcall swift_deletedMethodError()",  # noreturn
+    "_swift_stdlib_isStackAllocationSafe": "Swift::Bool __fastcall swift_stdlib_isStackAllocationSafe(size_t size, size_t alignMask)",
+    "_swift_stdlib_random": "void __fastcall swift_stdlib_random(void *buffer, size_t length)",
+    "_swift_runtimeSupportsNoncopyableTypes": "Swift::Bool __fastcall swift_runtimeSupportsNoncopyableTypes()",
+    # Swift runtime — concurrency (Task / continuation / async let / actor)
+    "_swift_task_create": "id __fastcall swift_task_create(uint64_t flags, void *options, void *futureResultType, void *taskFunc, void *taskCtx)",
+    "_swift_task_alloc": "void *__fastcall swift_task_alloc(size_t size)",
+    "_swift_task_dealloc": "void __fastcall swift_task_dealloc(void *ptr)",
+    "_swift_task_switch": "void __fastcall swift_task_switch(void *resumeCtx, void *resumeFn, void *newExecutor)",
+    "_swift_task_localValuePush": "void __fastcall swift_task_localValuePush(void *key, void *value, void *valueType)",
+    "_swift_task_localValuePop": "void __fastcall swift_task_localValuePop()",
+    "_swift_task_getMainExecutor": "void *__fastcall swift_task_getMainExecutor()",
+    "_swift_task_asyncMainDrainQueue": "void __fastcall swift_task_asyncMainDrainQueue()",  # noreturn
+    "_swift_continuation_init": "void __fastcall swift_continuation_init(void *continuation, void *flags)",
+    "_swift_continuation_await": "void __fastcall swift_continuation_await(void *continuation)",
+    "_swift_continuation_resume": "void __fastcall swift_continuation_resume(void *continuation)",
+    "_swift_continuation_throwingResume": "void __fastcall swift_continuation_throwingResume(void *continuation)",
+    "_swift_continuation_throwingResumeWithError": "void __fastcall swift_continuation_throwingResumeWithError(void *continuation, id error)",
+    "_swift_job_run": "void __fastcall swift_job_run(void *job, void *executor)",
+    "_swift_defaultActor_initialize": "void __fastcall swift_defaultActor_initialize(id actor)",
+    "_swift_defaultActor_destroy": "void __fastcall swift_defaultActor_destroy(id actor)",
+    "_swift_defaultActor_deallocate": "void __fastcall swift_defaultActor_deallocate(id actor)",
+    "_swift_asyncLet_begin": "void __fastcall swift_asyncLet_begin(void *asyncLet, void *options, void *resultType, void *taskFunc, void *taskCtx, void *resultBuf)",
+    "_swift_asyncLet_finish": "void __fastcall swift_asyncLet_finish(void *asyncLet, void *resultBuf)",
+    "_swift_asyncLet_get": "void __fastcall swift_asyncLet_get(void *asyncLet, void *resultBuf)",
+    "_swift_asyncLet_get_throwing": "void __fastcall __spoils<X21> swift_asyncLet_get_throwing(void *asyncLet, void *resultBuf)",
+    # Swift runtime — exclusivity / weak / unowned
+    "_swift_beginAccess": "void __fastcall swift_beginAccess(void *pointer, void *buffer, uint64_t flags, void *pc)",
+    "_swift_endAccess": "void __fastcall swift_endAccess(void *buffer)",
+    "_swift_weakInit": "void __fastcall swift_weakInit(void *weak, id object)",
+    "_swift_weakAssign": "void __fastcall swift_weakAssign(void *weak, id object)",
+    "_swift_weakDestroy": "void __fastcall swift_weakDestroy(void *weak)",
+    "_swift_weakLoadStrong": "id __fastcall swift_weakLoadStrong(void *weak)",
+    "_swift_unownedRetain": "id __fastcall swift_unownedRetain(id object)",
+    "_swift_unownedRelease": "void __fastcall swift_unownedRelease(id object)",
+    "_swift_unownedRetainStrong": "id __fastcall swift_unownedRetainStrong(id object)",
+    "_swift_unknownObjectWeakInit": "void __fastcall swift_unknownObjectWeakInit(void *weak, id object)",
+    "_swift_unknownObjectWeakAssign": "void __fastcall swift_unknownObjectWeakAssign(void *weak, id object)",
+    "_swift_unknownObjectWeakDestroy": "void __fastcall swift_unknownObjectWeakDestroy(void *weak)",
+    "_swift_unknownObjectWeakLoadStrong": "id __fastcall swift_unknownObjectWeakLoadStrong(void *weak)",
+    "_swift_unknownObjectUnownedInit": "void __fastcall swift_unknownObjectUnownedInit(void *unowned, id object)",
+    "_swift_unknownObjectUnownedDestroy": "void __fastcall swift_unknownObjectUnownedDestroy(void *unowned)",
+    "_swift_unknownObjectUnownedLoadStrong": "id __fastcall swift_unknownObjectUnownedLoadStrong(void *unowned)",
+    "_swift_makeBoxUnique": "id __fastcall swift_makeBoxUnique(id object, void *metadata, size_t alignMask)",
+    # Swift runtime — error helpers
+    "_swift_allocError": "void *__fastcall swift_allocError(void *metadata, void *witness, void *valueOut, Swift::Bool isTake)",
+    "_swift_getErrorValue": "void __fastcall swift_getErrorValue(id error, void *scratch, void *valueOut)",
+    # Swift runtime — type / metadata
+    "_swift_dynamicCastObjCClass": "id __fastcall swift_dynamicCastObjCClass(id object, Class targetClass)",
+    "_swift_dynamicCastObjCProtocolConditional": "id __fastcall swift_dynamicCastObjCProtocolConditional(id object, size_t numProtocols, const void *protocols)",
+    "_swift_dynamicCastObjCProtocolUnconditional": "id __fastcall swift_dynamicCastObjCProtocolUnconditional(id object, size_t numProtocols, const void *protocols)",
+    "_swift_getDynamicType": "void *__fastcall swift_getDynamicType(void *value, void *staticType, Swift::Bool existential)",
+    "_swift_getKeyPath": "id __fastcall swift_getKeyPath(const void *pattern, const void *args)",
+    "_swift_getAtKeyPath": "void *__fastcall swift_getAtKeyPath(void *destBuf, void *root, id keyPath)",
+    "_swift_isClassType": "Swift::Bool __fastcall swift_isClassType(void *metadata)",
+    "_swift_isEscapingClosureAtFileLocation": "Swift::Bool __fastcall swift_isEscapingClosureAtFileLocation(id closure, const char *file, size_t fileLen, Swift::Bool isAscii, size_t line, size_t column, uint32_t verbType)",
+    "_swift_getForeignTypeMetadata": "void *__fastcall swift_getForeignTypeMetadata(void *candidate)",
+    "_swift_getGenericMetadata": "void *__fastcall swift_getGenericMetadata(int request, const void *args, const void *description)",
+    "_swift_getSingletonMetadata": "void *__fastcall swift_getSingletonMetadata(int request, const void *description)",
+    "_swift_checkMetadataState": "void *__fastcall swift_checkMetadataState(int request, void *metadata)",
+    "_swift_initClassMetadata2": "void *__fastcall swift_initClassMetadata2(void *metadata, uint64_t flags, size_t numFields, const void *fieldTypes, const void *fieldOffsets)",
+    "_swift_updateClassMetadata2": "void *__fastcall swift_updateClassMetadata2(void *metadata, uint64_t flags, size_t numFields, const void *fieldTypes, const void *fieldOffsets)",
+    "_swift_initStructMetadata": "void __fastcall swift_initStructMetadata(void *metadata, uint64_t flags, size_t numFields, const void *fieldTypes, const void *fieldOffsets)",
+    "_swift_initEnumMetadataSingleCase": "void __fastcall swift_initEnumMetadataSingleCase(void *metadata, uint64_t flags, const void *payloadLayout)",
+    "_swift_initEnumMetadataSinglePayload": "void __fastcall swift_initEnumMetadataSinglePayload(void *metadata, uint64_t flags, const void *payloadLayout, uint32_t emptyCases)",
+    "_swift_initEnumMetadataMultiPayload": "void __fastcall swift_initEnumMetadataMultiPayload(void *metadata, uint64_t flags, size_t numPayloads, const void *payloadLayouts)",
+    "_swift_getEnumCaseMultiPayload": "uint32_t __fastcall swift_getEnumCaseMultiPayload(const void *value, const void *metadata)",
+    "_swift_storeEnumTagMultiPayload": "void __fastcall swift_storeEnumTagMultiPayload(void *value, const void *metadata, uint32_t whichCase)",
+    "_swift_getEnumTagSinglePayloadGeneric": "uint32_t __fastcall swift_getEnumTagSinglePayloadGeneric(const void *value, uint32_t emptyCases, const void *metadata, const void *xiFn)",
+    "_swift_storeEnumTagSinglePayloadGeneric": "void __fastcall swift_storeEnumTagSinglePayloadGeneric(void *value, uint32_t whichCase, uint32_t emptyCases, const void *metadata, const void *xiFn)",
+    "_swift_getAssociatedTypeWitness": "void *__fastcall swift_getAssociatedTypeWitness(int request, const void *witnessTable, const void *conformingType, const void *reqBase, const void *assocType)",
+    "_swift_getAssociatedConformanceWitness": "void *__fastcall swift_getAssociatedConformanceWitness(const void *witnessTable, const void *conformingType, const void *assocType, const void *reqBase, const void *assocConformance)",
+    "_swift_getOpaqueTypeConformance2": "void *__fastcall swift_getOpaqueTypeConformance2(const void *args, const void *descriptor, size_t index)",
+    "_swift_allocateGenericClassMetadata": "void *__fastcall swift_allocateGenericClassMetadata(const void *description, const void *args, const void *pattern)",
+    "_swift_allocateGenericValueMetadata": "void *__fastcall swift_allocateGenericValueMetadata(const void *description, const void *args, const void *pattern, size_t extraDataSize)",
+    # Swift runtime — array (extras)
+    "_swift_arrayInitWithTakeBackToFront": "void __fastcall swift_arrayInitWithTakeBackToFront(void *dest, void *src, size_t count, void *metadata)",
+    "_swift_arrayInitWithTakeFrontToBack": "void __fastcall swift_arrayInitWithTakeFrontToBack(void *dest, void *src, size_t count, void *metadata)",
     # Dispatch
     "_$sSo17OS_dispatch_queueC8DispatchE5label3qos10attributes20autoreleaseFrequency6targetABSS_AC0D3QoSVAbCE10AttributesVAbCE011AutoreleaseI0OABSgtcfC": "__int64 __fastcall OS_dispatch_queue_init_label_qos_attributes_autoreleaseFrequency_target__(Swift::String label, _QWORD qos, _QWORD attributes, _QWORD frequency, _QWORD target)",
     "_$sSo17OS_dispatch_queueC8DispatchE4sync7executexxyKXE_tKlF": "_QWORD *__swiftcall OS_dispatch_queue_sync_A__execute__(_QWORD *__return_ptr, void *dispatchQueue, void *cb, id params, void *returnType)",
@@ -135,21 +262,125 @@ FUNCTIONS_SIGNATURES = {
     "_$s10Foundation3URLV22appendingPathComponentyACSSF": "__int64 __swiftcall URL_appendingPathComponent____(void *__swiftself self, Swift::String component)",
     # Logger
     "_$s2os6LoggerV9logObjectSo03OS_a1_C0Cvg": "__int64 __swiftcall Logger_logObject_getter(_QWORD)",
+    "_$s10Foundation3URLV15fileURLWithPathACSSh_tcfC": "void __swiftcall URL_init_fileURLWithPath__(__int64 *__return_ptr, Swift::String path)",
+    "_$s10Foundation3URLV14absoluteStringSSvg": "Swift::String __swiftcall URL_absoluteString_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV4hostSSSgvg": "Swift::String_optional __swiftcall URL_host_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV6schemeSSSgvg": "Swift::String_optional __swiftcall URL_scheme_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV22appendingPathComponent_11isDirectoryACSS_SbtF": "__int64 __swiftcall URL_appendingPathComponent__isDirectory__(void *__swiftself self, Swift::String component, Swift::Bool isDirectory)",
+    "_$s10Foundation3URLV23resolvingSymlinksInPathACyF": "__int64 __swiftcall URL_resolvingSymlinksInPath__(void *__swiftself self)",
+    "_$s10Foundation3URLV2eeoiySbAC_ACtFZ": "Swift::Bool __fastcall static_URL_equality(void *lhs, void *rhs)",
+    # NB: Foundation.URL is a Swift *struct* (value type), not a class — the
+    # bridgeToObjectiveC signature has been observed to trip hex-rays INTERR
+    # 52236 inside searchpartyd when typed as `__swiftClassCall`. Leaving it
+    # to hex-rays' own inference until we have a value-type ABI shape that
+    # works across callers.
+    "_$s10Foundation3URLV36_unconditionallyBridgeFromObjectiveCyACSo5NSURLCSgFZ": "void __swiftcall static_URL__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, NSURL nsurl)",
+    "_$s10Foundation3URLV15fileURLWithPath11isDirectoryACSSh_SbtcfC": "void __swiftcall URL_init_fileURLWithPath_isDirectory__(__int64 *__return_ptr, Swift::String path, Swift::Bool isDirectory)",
+    "_$s10Foundation3URLV17lastPathComponentSSvg": "Swift::String __swiftcall URL_lastPathComponent_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV13pathExtensionSSvg": "Swift::String __swiftcall URL_pathExtension_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV25deletingLastPathComponentACyF": "void __swiftcall URL_deletingLastPathComponent__(__int64 *__return_ptr, void *__swiftself self)",
+    "_$s10Foundation3URLV21deletingPathExtensionACyF": "void __swiftcall URL_deletingPathExtension__(__int64 *__return_ptr, void *__swiftself self)",
+    "_$s10Foundation3URLV22appendingPathExtensionyACSSF": "void __swiftcall URL_appendingPathExtension__(__int64 *__return_ptr, void *__swiftself self, Swift::String ext)",
+    "_$s10Foundation3URLV19appendPathComponentyySSF": "void __swiftcall URL_appendPathComponent__(void *__swiftself self, Swift::String component)",
+    "_$s10Foundation3URLV06isFileB0Sbvg": "Swift::Bool __swiftcall URL_isFileURL_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV16hasDirectoryPathSbvg": "Swift::Bool __swiftcall URL_hasDirectoryPath_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV11descriptionSSvg": "Swift::String __swiftcall URL_description_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV12relativePathSSvg": "Swift::String __swiftcall URL_relativePath_getter(void *__swiftself self)",
+    "_$s10Foundation3URLV24checkResourceIsReachableSbyKF": "Swift::Bool __swiftcall __spoils<X21> URL_checkResourceIsReachable__(void *self)",
+    # Foundation — Error bridging
+    "_$s10Foundation22_convertErrorToNSErrorySo0E0Cs0C0_pF": "NSError __fastcall _convertErrorToNSError(void *error, void *type, void *witness)",
+    "_$s10Foundation22_convertNSErrorToErrorys0E0_pSo0C0CSgF": "void __fastcall _convertNSErrorToError(void *__return_ptr, NSError nsError)",
+    # Foundation.PropertyListEncoder / PropertyListDecoder
+    "_$s10Foundation19PropertyListEncoderCACycfc": "id __swiftcall PropertyListEncoder_init__(id __swiftself self)",
+    "_$s10Foundation19PropertyListDecoderCACycfc": "id __swiftcall PropertyListDecoder_init__(id __swiftself self)",
+    "_$s10Foundation19PropertyListEncoderC6encodeyAA4DataVxKSERzlFTj": "void __usercall __spoils<X21> dispatch_thunk_of_PropertyListEncoder_encode__(__int64 *__return_ptr@<X8>, id self@<X20>, void *value@<X0>, void *type@<X1>, void *witness@<X2>)",
+    "_$s10Foundation19PropertyListDecoderC6decode_4fromxxm_AA4DataVtKSeRzlFTj": "void __usercall __spoils<X21> dispatch_thunk_of_PropertyListDecoder_decode_from__(void *__return_ptr@<X8>, id self@<X20>, void *type@<X0>, _QWORD data_low@<X1>, _QWORD data_high@<X2>, void *typeMetadata@<X3>, void *witness@<X4>)",
+    # Codable container dispatch thunks
+    "_$ss24UnkeyedDecodingContainerP6decodeyqd__qd__mKSeRd__lFTj": "void __usercall __spoils<X21> dispatch_thunk_of_UnkeyedDecodingContainer_decode__(void *__return_ptr@<X8>, void *self@<X20>, void *type@<X0>, void *typeMetadata@<X1>, void *witness@<X2>)",
+    "_$ss24UnkeyedDecodingContainerP15decodeIfPresentyqd__Sgqd__mKSeRd__lFTj": "void __usercall __spoils<X21> dispatch_thunk_of_UnkeyedDecodingContainer_decodeIfPresent__(void *__return_ptr@<X8>, void *self@<X20>, void *type@<X0>, void *typeMetadata@<X1>, void *witness@<X2>)",
+    # Foundation.ContiguousBytes
+    "_$s10Foundation15ContiguousBytesP010withUnsafeC0yqd__qd__SWKXEKlFTj": "void __usercall __spoils<X21> dispatch_thunk_of_ContiguousBytes_withUnsafeBytes__(void *__return_ptr@<X8>, void *self@<X20>, void *body@<X0>, void *body_ctx@<X1>, void *resultType@<X2>, void *witness@<X3>)",
+    "_$s10Foundation4DataV15withUnsafeBytesyxxSPyq_GKXEKr0_lF": "void __usercall __spoils<X21> Data_withUnsafeBytes__(void *__return_ptr@<X8>, void *self@<X20>, void *body@<X0>, void *body_ctx@<X1>, void *resultType@<X2>, void *elementType@<X3>)",
+    # Swift.AnyHashable
+    "_$ss11AnyHashableVyABxcSHRzlufC": "void __swiftcall AnyHashable_init__(void *__return_ptr, void *value, void *type, void *witness)",
+    "_$ss11AnyHashableV11descriptionSSvg": "Swift::String __swiftcall AnyHashable_description_getter(void *__swiftself self)",
+    "_$ss11AnyHashableV13_rawHashValue4seedS2i_tF": "__int64 __swiftcall AnyHashable_rawHashValue_seed__(void *__swiftself self, __int64 seed)",
+    # Swift.withCheckedContinuation / withCheckedThrowingContinuation (async)
+    "_$ss23withCheckedContinuation9isolation8function_xScA_pSgYi_SSyScCyxs5NeverOGXEtYalF": "void __fastcall withCheckedContinuation_isolation_function__(void *__return_ptr, void *isolation, Swift::String function, void *body, void *body_ctx, void *resultType)",
+    "_$ss31withCheckedThrowingContinuation9isolation8function_xScA_pSgYi_SSyScCyxs5Error_pGXEtYaKlF": "void __fastcall __spoils<X21> withCheckedThrowingContinuation_isolation_function__(void *__return_ptr, void *isolation, Swift::String function, void *body, void *body_ctx, void *resultType)",
+    # Swift.Collection — generic extension getter
+    "_$sSlsE7isEmptySbvg": "Swift::Bool __fastcall Collection_isEmpty_getter(void *self, void *type, void *witness)",
+    # Logger
+    "_$s2os6LoggerV9subsystem8categoryACSS_SStcfC": "void __swiftcall Logger_init_subsystem_category__(__int64 *__return_ptr, Swift::String subsystem, Swift::String category)",
     "_$sSo13os_log_type_ta0A0E4infoABvgZ": "__int64 __fastcall static_os_log_type_t_info_getter(id)",
+    "_$sSo13os_log_type_ta0A0E5errorABvgZ": "__int64 __fastcall static_os_log_type_t_error_getter(id)",
+    "_$sSo13os_log_type_ta0A0E7defaultABvgZ": "__int64 __fastcall static_os_log_type_t_default_getter(id)",
+    "_$sSo13os_log_type_ta0A0E5debugABvgZ": "__int64 __fastcall static_os_log_type_t_debug_getter(id)",
+    "_$sSo13os_log_type_ta0A0E5faultABvgZ": "__int64 __fastcall static_os_log_type_t_fault_getter(id)",
     # print()
     "_$ss5print_9separator10terminatoryypd_S2StF": "void __fastcall print___separator_terminator__(Swift_ArrayAny *, Swift::String, Swift::String)",
     "_$ss10debugPrint_9separator10terminatoryypd_S2StFfA0_": "Swift::String default_argument_1_of_debugPrint___separator_terminator__(void)",
     # Arrays
     "_$ss27_allocateUninitializedArrayySayxG_BptBwlF": "Swift_ArrayAny *__fastcall _allocateUninitializedArray_A(u64 count, void *arrayType)",
     "_$ss27_finalizeUninitializedArrayySayxGABnlF": "Swift_ArrayAny *__fastcall _finalizeUninitializedArray_A(Swift_ArrayAny *, void *arrayType)",
-    # Bridging
+    # Bridging — Swift → ObjC (`_bridgeToObjectiveC`) and back
+    # (`_unconditionallyBridgeFromObjectiveC` / `_conditionallyBridgeFromObjectiveC`).
+    # Each Foundation value type has a 2-4 method bridge surface; opportunistic
+    # scans of `coreidvd` / `searchpartyd` / etc. produced this list. Missing a
+    # particular `<TypeName>._unconditionallyBridgeFromObjectiveC` mirror means
+    # call sites render as `sub_X(nsobj)` instead of
+    # `Type__unconditionallyBridgeFromObjectiveC__(nsobj)`.
     "_$sSS10FoundationE36_unconditionallyBridgeFromObjectiveCySSSo8NSStringCSgFZ": "Swift::String __fastcall static_String__unconditionallyBridgeFromObjectiveC____(id)",
     "_$sSS10FoundationE19_bridgeToObjectiveCSo8NSStringCyF": "NSString __swiftcall String__bridgeToObjectiveC__(Swift::String)",
     "_swift_bridgeObjectRelease": "void swift_bridgeObjectRelease(id)",
     "_swift_bridgeObjectRetain": "id swift_bridgeObjectRetain(id)",
-    "_$sSD10FoundationE19_bridgeToObjectiveCSo12NSDictionaryCyF": "NSDictionary __swiftcall Dictionary__bridgeToObjectiveC__(id swiftDict, id typeMetadata, id unknown, id protocolWitness)",
-    "_$s10Foundation4DataV19_bridgeToObjectiveCSo6NSDataCyF": "NSData __swiftcall Data__bridgeToObjectiveC__(Swift::String)",
+    # Swift.Array
     "_$sSa10FoundationE19_bridgeToObjectiveCSo7NSArrayCyF": "NSArray __swiftcall Array__bridgeToObjectiveC__(Swift_ArrayAny *)",
+    "_$sSa10FoundationE36_unconditionallyBridgeFromObjectiveCySayxGSo7NSArrayCSgFZ": "void __swiftcall static_Array__unconditionallyBridgeFromObjectiveC__(Swift_ArrayAny *__return_ptr, NSArray ns, void *typeMetadata)",
+    "_$sSa10FoundationE34_conditionallyBridgeFromObjectiveC_6resultSbSo7NSArrayC_SayxGSgztFZ": "Swift::Bool __swiftcall static_Array__conditionallyBridgeFromObjectiveC__(NSArray ns, Swift_ArrayAny **result, void *typeMetadata)",
+    # Swift.Dictionary
+    "_$sSD10FoundationE19_bridgeToObjectiveCSo12NSDictionaryCyF": "NSDictionary __swiftcall Dictionary__bridgeToObjectiveC__(id swiftDict, id typeMetadata, id unknown, id protocolWitness)",
+    "_$sSD10FoundationE36_unconditionallyBridgeFromObjectiveCySDyxq_GSo12NSDictionaryCSgFZ": "void __swiftcall static_Dictionary__unconditionallyBridgeFromObjectiveC__(void *__return_ptr, NSDictionary ns, void *keyType, void *valueType, void *keyHashable, void *valueHashable)",
+    "_$sSD10FoundationE34_conditionallyBridgeFromObjectiveC_6resultSbSo12NSDictionaryC_SDyxq_GSgztFZ": "Swift::Bool __swiftcall static_Dictionary__conditionallyBridgeFromObjectiveC__(NSDictionary ns, void **result, void *keyType, void *valueType, void *keyHashable, void *valueHashable)",
+    # Foundation.URLRequest
+    "_$s10Foundation10URLRequestV36_unconditionallyBridgeFromObjectiveCyACSo12NSURLRequestCSgFZ": "void __swiftcall static_URLRequest__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, NSURLRequest ns)",
+    # Foundation.Notification
+    "_$s10Foundation12NotificationV19_bridgeToObjectiveCSo14NSNotificationCyF": "NSNotification __swiftcall Notification__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s10Foundation12NotificationV36_unconditionallyBridgeFromObjectiveCyACSo14NSNotificationCSgFZ": "void __swiftcall static_Notification__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, NSNotification ns)",
+    # Foundation.DateInterval
+    "_$s10Foundation12DateIntervalV19_bridgeToObjectiveCSo06NSDateC0CyF": "NSDateInterval __swiftcall DateInterval__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s10Foundation12DateIntervalV36_unconditionallyBridgeFromObjectiveCyACSo06NSDateC0CSgFZ": "void __swiftcall static_DateInterval__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, NSDateInterval ns)",
+    # Foundation.DateComponents
+    "_$s10Foundation14DateComponentsV19_bridgeToObjectiveCSo06NSDateC0CyF": "id __swiftcall DateComponents__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s10Foundation14DateComponentsV36_unconditionallyBridgeFromObjectiveCyACSo06NSDateC0CSgFZ": "void __swiftcall static_DateComponents__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, id ns)",
+    # Foundation.PersonNameComponents
+    "_$s10Foundation20PersonNameComponentsV19_bridgeToObjectiveCSo08NSPersoncD0CyF": "id __swiftcall PersonNameComponents__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s10Foundation20PersonNameComponentsV36_unconditionallyBridgeFromObjectiveCyACSo08NSPersoncD0CSgFZ": "void __swiftcall static_PersonNameComponents__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, id ns)",
+    # Foundation.Locale
+    "_$s10Foundation6LocaleV36_unconditionallyBridgeFromObjectiveCyACSo8NSLocaleCSgFZ": "void __swiftcall static_Locale__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, NSLocale ns)",
+    # Foundation.Calendar
+    "_$s10Foundation8CalendarV19_bridgeToObjectiveCSo10NSCalendarCyF": "id __swiftcall Calendar__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s10Foundation8CalendarV36_unconditionallyBridgeFromObjectiveCyACSo10NSCalendarCSgFZ": "void __swiftcall static_Calendar__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, id ns)",
+    # Foundation.IndexSet
+    "_$s10Foundation8IndexSetV19_bridgeToObjectiveCSo07NSIndexC0CyF": "id __swiftcall IndexSet__bridgeToObjectiveC__(void *__swiftself self)",
+    # Foundation.TimeZone
+    "_$s10Foundation8TimeZoneV19_bridgeToObjectiveCSo06NSTimeC0CyF": "id __swiftcall TimeZone__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s10Foundation8TimeZoneV36_unconditionallyBridgeFromObjectiveCyACSo06NSTimeC0CSgFZ": "void __swiftcall static_TimeZone__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, id ns)",
+    # UniformTypeIdentifiers.UTType
+    "_$s22UniformTypeIdentifiers6UTTypeV36_unconditionallyBridgeFromObjectiveCyACSoABCSgFZ": "void __swiftcall static_UTType__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, id ns)",
+    # (Date / UUID bridges live in their own per-type sections later.)
+    # Numeric value type bridges → NSNumber
+    "_$sSb10FoundationE19_bridgeToObjectiveCSo8NSNumberCyF": "NSNumber __fastcall Bool__bridgeToObjectiveC__(Swift::Bool v)",
+    "_$sSd10FoundationE19_bridgeToObjectiveCSo8NSNumberCyF": "NSNumber __fastcall Double__bridgeToObjectiveC__(double v)",
+    "_$ss5Int32V10FoundationE19_bridgeToObjectiveCSo8NSNumberCyF": "NSNumber __fastcall Int32__bridgeToObjectiveC__(int v)",
+    "_$ss5Int64V10FoundationE19_bridgeToObjectiveCSo8NSNumberCyF": "NSNumber __fastcall Int64__bridgeToObjectiveC__(long long v)",
+    "_$ss5Int64V10FoundationE34_conditionallyBridgeFromObjectiveC_6resultSbSo8NSNumberC_ABSgztFZ": "Swift::Bool __fastcall static_Int64__conditionallyBridgeFromObjectiveC__(NSNumber ns, long long *result)",
+    "_$ss5UInt8V10FoundationE19_bridgeToObjectiveCSo8NSNumberCyF": "NSNumber __fastcall UInt8__bridgeToObjectiveC__(unsigned char v)",
+    "_$ss6UInt64V10FoundationE19_bridgeToObjectiveCSo8NSNumberCyF": "NSNumber __fastcall UInt64__bridgeToObjectiveC__(unsigned long long v)",
+    # Misc one-offs
+    "_$ss11AnyHashableV10FoundationE19_bridgeToObjectiveCSo8NSObjectCyF": "NSObject __swiftcall AnyHashable__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s7Intents10INShortcutO19_bridgeToObjectiveCSoABCyF": "id __swiftcall INShortcut__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s8Dispatch0A4DataV19_bridgeToObjectiveCSo16OS_dispatch_dataCyF": "id __swiftcall Dispatch_Data__bridgeToObjectiveC__(void *__swiftself self)",
     # Allocating global objects
     "___swift_allocate_value_buffer": "void *__fastcall __swift_allocate_value_buffer(void *typeInfo, void **pObject)",
     "___swift_project_value_buffer": "__int64 __fastcall __swift_project_value_buffer(void *typeInfo, void *object)",
@@ -164,7 +395,39 @@ FUNCTIONS_SIGNATURES = {
     "_$sSS5countSivg": "__int64 __swiftcall String_count_getter(void *__swiftself self, Swift::String)",
     "_$sSS10FoundationE10contentsOf8encodingSSAA3URLVh_SSAAE8EncodingVtKcfC": "Swift::String __usercall __spoils<X21> String_init_contentsOf_encoding__@<X0:X1>(Swift::String@<X0:X1>)",
     # Data operations
+    # String operations — Swift stdlib
+    "_$sSS9hasSuffixySbSSF": "Swift::Bool __swiftcall String_hasSuffix____(Swift::String, Swift::String)",
+    "_$sSS10lowercasedSSyF": "Swift::String __swiftcall String_lowercased__(Swift::String self)",
+    "_$sSS10uppercasedSSyF": "Swift::String __swiftcall String_uppercased__(Swift::String self)",
+    "_$sSS9hashValueSivg": "__int64 __swiftcall String_hashValue_getter(Swift::String self)",
+    "_$sSS16debugDescriptionSSvg": "Swift::String __swiftcall String_debugDescription_getter(Swift::String self)",
+    "_$sSS10describingSSx_tclufC": "Swift::String __swiftcall String_init_describing_A(void *value, void *typeMetadata)",
+    "_$sSS10reflectingSSx_tclufC": "Swift::String __swiftcall String_init_reflecting_A(void *value, void *typeMetadata)",
+    "_$sSS7cStringSSSPys4Int8VG_tcfC": "Swift::String __swiftcall String_init_cString__Int8(const char *cString)",
+    "_$sSS7cStringSSSPys5UInt8VG_tcfC": "Swift::String __swiftcall String_init_cString__UInt8(const unsigned char *cString)",
+    "_$sSS11utf8CStrings15ContiguousArrayVys4Int8VGvg": "void __swiftcall String_utf8CString_getter(Swift_ArrayAny *__return_ptr, Swift::String __swiftself self)",
+    # String operations — Foundation extensions
+    "_$sSS10FoundationE14contentsOfFile8encodingS2Sh_SSAAE8EncodingVtKcfC": "Swift::String __usercall __spoils<X21> String_init_contentsOfFile_encoding__@<X0:X1>(Swift::String@<X0:X1> path, _QWORD encoding)",
+    "_$sSS10FoundationE4data5using20allowLossyConversionAA4DataVSgSSAAE8EncodingV_SbtF": "Swift::String __fastcall StringProtocol_data_using_allowLossyConversion__(_QWORD, _QWORD, _QWORD, _QWORD);",
+    "_$sSS10FoundationE4data8encodingSSSgAA4DataVh_SSAAE8EncodingVtcfC": "Swift::String_optional __swiftcall String_init_data_encoding__(void *data, _QWORD encoding)",
+    "_$sSS10FoundationE6format_S2Sh_s7CVarArg_pdtcfC": "Swift::String __swiftcall String_init_format___(Swift::String format, ...)",
+    "_$sSS10FoundationE8EncodingV4utf8ACvgZ": "__int64 __fastcall static_String_Encoding_utf8_getter()",
+    # StringProtocol extensions
+    "_$sSy10FoundationE10components11separatedBySaySSGqd___tSyRd__lF": "void __swiftcall StringProtocol_components_separatedBy__(Swift_ArrayAny *__return_ptr, void *self, _QWORD separator, _QWORD separatorType)",
+    "_$sSy10FoundationE18trimmingCharacters2inSSAA12CharacterSetV_tF": "Swift::String __swiftcall StringProtocol_trimmingCharacters_in__(void *self, void *characterSet)",
+    "_$sSy10FoundationE8containsySbqd__SyRd__lF": "Swift::Bool __swiftcall StringProtocol_contains__(void *self, _QWORD other, _QWORD otherType)",
+    "_$sSy10FoundationE22caseInsensitiveCompareySo18NSComparisonResultVqd__SyRd__lF": "__int64 __swiftcall StringProtocol_caseInsensitiveCompare__(void *self, _QWORD other, _QWORD otherType)",
+    # Foundation.Data
     "_$s10Foundation4DataV11referencingACSo6NSDataCh_tcfC": "Swift::String __fastcall Data_init_referencing__(_QWORD)",
+    "_$s10Foundation4DataV10contentsOf7optionsAcA3URLVh_So20NSDataReadingOptionsVtKcfC": "void __swiftcall __spoils<X21> Data_init_contentsOf_options__(__int64 *__return_ptr, void *url, _QWORD options)",
+    "_$s10Foundation4DataV5write2to7optionsyAA3URLV_So20NSDataWritingOptionsVtKF": "void __swiftcall __spoils<X21> Data_write_to_options__(void *self, void *url, _QWORD options)",
+    "_$s10Foundation4DataV13base64Encoded7optionsACSgSSh_So27NSDataBase64DecodingOptionsVtcfC": "void __swiftcall Data_init_base64Encoded_options__(__int64 *__return_ptr, Swift::String s, _QWORD options)",
+    "_$s10Foundation4DataV19base64EncodedString7optionsSSSo27NSDataBase64EncodingOptionsV_tF": "Swift::String __swiftcall Data_base64EncodedString_options__(void *__swiftself self, _QWORD options)",
+    "_$s10Foundation4DataV6appendyyACF": "void __swiftcall Data_append____(void *__swiftself self, void *other)",
+    "_$s10Foundation4DataV7subdata2inACSnySiG_tF": "void __swiftcall Data_subdata_in__(void *__swiftself self, __int64 *__return_ptr, _QWORD rangeLo, _QWORD rangeHi)",
+    "_$s10Foundation4DataV11descriptionSSvg": "Swift::String __swiftcall Data_description_getter(void *__swiftself self)",
+    "_$s10Foundation4DataV19_bridgeToObjectiveCSo6NSDataCyF": "NSData __swiftcall Data__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s10Foundation4DataV36_unconditionallyBridgeFromObjectiveCyACSo6NSDataCSgFZ": "void __swiftcall static_Data__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, NSData nsdata)",
     # String interpolation
     "_$ss26DefaultStringInterpolationV13appendLiteralyySSF": "Swift::Void __usercall DefaultStringInterpolation_appendLiteral____(void *@<X20>, Swift::String@<X0:X1>)",
     "_$ss26DefaultStringInterpolationV06appendC0yyxlF": "Swift::Void __usercall DefaultStringInterpolation_appendInterpolation_A(void *@<X20>, Swift::String@<X0:X1>)",
@@ -172,6 +435,75 @@ FUNCTIONS_SIGNATURES = {
     "_$sSS19stringInterpolationSSs013DefaultStringB0V_tcfC": "Swift::String __fastcall String_init_stringInterpolation__(Swift::String)",
     # Dictionary operations
     "_$sSDyq_Sgxcig": "_QWORD *__swiftcall Dictionary_subscript_getter(_QWORD *__return_ptr a1, id object, Swift::String key)",
+    # Foundation.UUID
+    "_$s10Foundation4UUIDVACycfC": "void __swiftcall UUID_init__(__int64 *__return_ptr)",
+    "_$s10Foundation4UUIDV10uuidStringACSgSSh_tcfC": "void __swiftcall UUID_init_uuidString__(__int64 *__return_ptr, Swift::String uuidString)",
+    "_$s10Foundation4UUIDV10uuidStringSSvg": "Swift::String __swiftcall UUID_uuidString_getter(void *__swiftself self)",
+    "_$s10Foundation4UUIDV2eeoiySbAC_ACtFZ": "Swift::Bool __fastcall static_UUID_equality(void *lhs, void *rhs)",
+    "_$s10Foundation4UUIDV19_bridgeToObjectiveCSo6NSUUIDCyF": "NSUUID __swiftcall UUID__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s10Foundation4UUIDV36_unconditionallyBridgeFromObjectiveCyACSo6NSUUIDCSgFZ": "void __swiftcall static_UUID__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, NSUUID nsuuid)",
+    # Foundation.Date
+    "_$s10Foundation4DateVACycfC": "void __swiftcall Date_init__(__int64 *__return_ptr)",
+    "_$s10Foundation4DateV3nowACvgZ": "void __swiftcall static_Date_now_getter(__int64 *__return_ptr)",
+    "_$s10Foundation4DateV20timeIntervalSinceNowACSd_tcfC": "void __swiftcall Date_init_timeIntervalSinceNow__(__int64 *__return_ptr, double interval)",
+    "_$s10Foundation4DateV026timeIntervalSinceReferenceB0ACSd_tcfC": "void __swiftcall Date_init_timeIntervalSinceReferenceDate__(__int64 *__return_ptr, double interval)",
+    "_$s10Foundation4DateV20timeIntervalSinceNowSdvg": "double __swiftcall Date_timeIntervalSinceNow_getter(void *__swiftself self)",
+    "_$s10Foundation4DateV21timeIntervalSince1970Sdvg": "double __swiftcall Date_timeIntervalSince1970_getter(void *__swiftself self)",
+    "_$s10Foundation4DateV026timeIntervalSinceReferenceB0Sdvg": "double __swiftcall Date_timeIntervalSinceReferenceDate_getter(void *__swiftself self)",
+    "_$s10Foundation4DateV17timeIntervalSinceySdACF": "double __swiftcall Date_timeIntervalSince__(void *__swiftself self, void *other)",
+    "_$s10Foundation4DateV18addingTimeIntervalyACSdF": "void __swiftcall Date_addingTimeInterval__(__int64 *__return_ptr, void *__swiftself self, double interval)",
+    "_$s10Foundation4DateV2eeoiySbAC_ACtFZ": "Swift::Bool __fastcall static_Date_equality(void *lhs, void *rhs)",
+    "_$s10Foundation4DateV1loiySbAC_ACtFZ": "Swift::Bool __fastcall static_Date_lessThan(void *lhs, void *rhs)",
+    "_$s10Foundation4DateV1goiySbAC_ACtFZ": "Swift::Bool __fastcall static_Date_greaterThan(void *lhs, void *rhs)",
+    "_$s10Foundation4DateV1poiyA2C_SdtFZ": "void __swiftcall static_Date_plus(__int64 *__return_ptr, void *date, double interval)",
+    "_$s10Foundation4DateV1soiyA2C_SdtFZ": "void __swiftcall static_Date_minus(__int64 *__return_ptr, void *date, double interval)",
+    "_$s10Foundation4DateV19_bridgeToObjectiveCSo6NSDateCyF": "NSDate __swiftcall Date__bridgeToObjectiveC__(void *__swiftself self)",
+    "_$s10Foundation4DateV36_unconditionallyBridgeFromObjectiveCyACSo6NSDateCSgFZ": "void __swiftcall static_Date__unconditionallyBridgeFromObjectiveC__(__int64 *__return_ptr, NSDate nsdate)",
+    # Foundation.JSONEncoder / JSONDecoder
+    "_$s10Foundation11JSONEncoderCACycfc": "id __swiftcall JSONEncoder_init__(id __swiftself self)",
+    "_$s10Foundation11JSONDecoderCACycfc": "id __swiftcall JSONDecoder_init__(id __swiftself self)",
+    "_$s10Foundation11JSONEncoderC6encodeyAA4DataVxKSERzlFTj": "void __usercall __spoils<X21> dispatch_thunk_of_JSONEncoder_encode__(__int64 *__return_ptr@<X8>, id self@<X20>, void *value@<X0>, void *type@<X1>, void *witness@<X2>)",
+    "_$s10Foundation11JSONDecoderC6decode_4fromxxm_AA4DataVtKSeRzlFTj": "void __usercall __spoils<X21> dispatch_thunk_of_JSONDecoder_decode_from__(void *__return_ptr@<X8>, id self@<X20>, void *type@<X0>, _QWORD data_low@<X1>, _QWORD data_high@<X2>, void *typeMetadata@<X3>, void *witness@<X4>)",
+    # Protocol dispatch thunks — Equatable / Comparable / Hashable
+    "_$sSQ2eeoiySbx_xtFZTj": "Swift::Bool __fastcall dispatch_thunk_of_static_Equatable_equality_infix(void *lhs, void *rhs, void *type, void *witness)",
+    "_$sSL1loiySbx_xtFZTj": "Swift::Bool __fastcall dispatch_thunk_of_static_Comparable_lessThan_infix(void *lhs, void *rhs, void *type, void *witness)",
+    "_$sSL1goiySbx_xtFZTj": "Swift::Bool __fastcall dispatch_thunk_of_static_Comparable_greaterThan_infix(void *lhs, void *rhs, void *type, void *witness)",
+    "_$sSL2leoiySbx_xtFZTj": "Swift::Bool __fastcall dispatch_thunk_of_static_Comparable_lessThanOrEqual_infix(void *lhs, void *rhs, void *type, void *witness)",
+    "_$sSL2geoiySbx_xtFZTj": "Swift::Bool __fastcall dispatch_thunk_of_static_Comparable_greaterThanOrEqual_infix(void *lhs, void *rhs, void *type, void *witness)",
+    "_$sSH13_rawHashValue4seedS2i_tFTj": "__int64 __fastcall dispatch_thunk_of_Hashable_rawHashValue_seed__(void *self, __int64 seed, void *type, void *witness)",
+    "_$sSH4hash4intoys6HasherVz_tFTj": "void __fastcall dispatch_thunk_of_Hashable_hash_into__(void *self, void *hasher, void *type, void *witness)",
+    # Foundation.URLRequest
+    "_$s10Foundation10URLRequestV3url11cachePolicy15timeoutIntervalAcA3URLV_So017NSURLRequestCacheE0VSdtcfC": "void __swiftcall URLRequest_init_url_cachePolicy_timeoutInterval__(__int64 *__return_ptr, void *url, _QWORD cachePolicy, double timeoutInterval)",
+    "_$s10Foundation10URLRequestV3urlAA3URLVSgvg": "void __swiftcall URLRequest_url_getter(__int64 *__return_ptr, void *__swiftself self)",
+    "_$s10Foundation10URLRequestV10httpMethodSSSgvg": "Swift::String_optional __swiftcall URLRequest_httpMethod_getter(void *__swiftself self)",
+    "_$s10Foundation10URLRequestV10httpMethodSSSgvs": "void __swiftcall URLRequest_httpMethod_setter(void *__swiftself self, Swift::String httpMethod)",
+    "_$s10Foundation10URLRequestV8httpBodyAA4DataVSgvg": "void __swiftcall URLRequest_httpBody_getter(__int64 *__return_ptr, void *__swiftself self)",
+    "_$s10Foundation10URLRequestV8httpBodyAA4DataVSgvs": "void __swiftcall URLRequest_httpBody_setter(void *__swiftself self, void *data)",
+    "_$s10Foundation10URLRequestV8addValue_18forHTTPHeaderFieldySS_SStF": "void __swiftcall URLRequest_addValue__forHTTPHeaderField__(void *__swiftself self, Swift::String value, Swift::String field)",
+    "_$s10Foundation10URLRequestV8setValue_18forHTTPHeaderFieldySSSg_SStF": "void __swiftcall URLRequest_setValue__forHTTPHeaderField__(void *__swiftself self, Swift::String value, Swift::String field)",
+    "_$s10Foundation10URLRequestV11cachePolicySo017NSURLRequestCacheD0Vvs": "void __swiftcall URLRequest_cachePolicy_setter(void *__swiftself self, _QWORD policy)",
+    "_$s10Foundation10URLRequestV19_bridgeToObjectiveCSo12NSURLRequestCyF": "NSURLRequest __swiftcall URLRequest__bridgeToObjectiveC__(void *__swiftself self)",
+    # Foundation.URLComponents
+    "_$s10Foundation13URLComponentsV3url23resolvingAgainstBaseURLACSgAA0G0Vh_SbtcfC": "void __swiftcall URLComponents_init_url_resolvingAgainstBaseURL__(__int64 *__return_ptr, void *url, Swift::Bool resolving)",
+    "_$s10Foundation13URLComponentsV3urlAA3URLVSgvg": "void __swiftcall URLComponents_url_getter(__int64 *__return_ptr, void *__swiftself self)",
+    "_$s10Foundation13URLComponentsV10queryItemsSayAA12URLQueryItemVGSgvs": "void __swiftcall URLComponents_queryItems_setter(void *__swiftself self, Swift_ArrayAny *items)",
+    # Foundation.URLQueryItem
+    "_$s10Foundation12URLQueryItemV4name5valueACSSh_SSSghtcfC": "void __swiftcall URLQueryItem_init_name_value__(__int64 *__return_ptr, Swift::String name, Swift::String value)",
+    # Foundation.Locale
+    "_$s10Foundation6LocaleV10identifierACSS_tcfC": "void __swiftcall Locale_init_identifier__(__int64 *__return_ptr, Swift::String identifier)",
+    "_$s10Foundation6LocaleV10identifierSSvg": "Swift::String __swiftcall Locale_identifier_getter(void *__swiftself self)",
+    "_$s10Foundation6LocaleV19_bridgeToObjectiveCSo8NSLocaleCyF": "NSLocale __swiftcall Locale__bridgeToObjectiveC__(void *__swiftself self)",
+    # Foundation.Calendar
+    "_$s10Foundation8CalendarV10identifierA2C10IdentifierOh_tcfC": "void __swiftcall Calendar_init_identifier__(__int64 *__return_ptr, _QWORD identifier)",
+    # Swift concurrency — Task / MainActor / cancellation
+    "_$sScT6cancelyyF": "void __swiftcall Task_cancel__(void *__swiftself self)",
+    "_$sScT5valuexvg": "void __swiftcall Task_value_getter(void *__return_ptr, void *__swiftself self)",
+    "_$sScM6sharedScMvgZ": "id __fastcall static_MainActor_shared_getter()",
+    "_$ss27withTaskCancellationHandler9operation8onCancel9isolationxxyYaKXE_yyYbXEScA_pSgYitYaKlF": "void __fastcall withTaskCancellationHandler_operation_onCancel_isolation__(void *__return_ptr, void *operation, void *operation_ctx, void *onCancel, void *onCancel_ctx, void *isolation, void *type)",
+    # Swift trap helpers (noreturn)
+    "_$ss17_assertionFailure__4file4line5flagss5NeverOs12StaticStringV_SSAHSus6UInt32VtF": "void __fastcall _assertionFailure(Swift::String prefix_lo, Swift::String prefix_hi, Swift::String message, Swift::String file, unsigned __int64 line, unsigned int flags)",
+    # Numeric conversions
+    "_$sSdySdSgSscfC": "double __fastcall Double_init_Substring__(Swift::String substring)",
 }
 
 
