@@ -53,6 +53,9 @@ SET_PROPERTY_FUNCTIONS: list[str | re.Pattern] = [
     "_objc_setProperty_atomic_copy",
     "j__objc_setProperty_atomic_copy",
     re.compile(r"j__objc_setProperty_atomic_copy_(\d+)"),
+    "objc_setProperty_nonatomic_copy",
+    "j__objc_setProperty_nonatomic_copy",
+    re.compile(r"j__objc_setProperty_nonatomic_copy_(\d+)"),
 ]
 
 # Replace get(x, offset) with x.field;
