@@ -25,8 +25,17 @@ from .plugins.objc.objc_ref import objc_xrefs_component
 from .plugins.objc.objc_refcnt import component as objc_refcount_component
 from .plugins.objc.objc_sugar import objc_sugar_component
 from .plugins.objc.oslog import component as oslog_component
+from .plugins.swift.swift_dump_import import (
+    swift_dump_config_component,
+    swift_dump_import_component,
+)
+from .plugins.swift.swift_oslog import swift_oslog_hook_component
 from .plugins.swift.swift_strings import swift_strings_component
-from .plugins.swift.swift_types import swift_types_component, swift_types_hook_component
+from .plugins.swift.swift_types import (
+    swift_prolog_hook_component,
+    swift_types_component,
+    swift_types_hook_component,
+)
 
 TOGGLE_ACTION_ID = "ioshelper:toggle"
 
@@ -97,7 +106,11 @@ def objc_plugins() -> list[ComponentFactory]:
         objc_sugar_component,
         swift_types_component,
         swift_types_hook_component,
+        swift_prolog_hook_component,
+        swift_oslog_hook_component,
         swift_strings_component,
+        swift_dump_import_component,
+        swift_dump_config_component,
     ]
 
 
