@@ -1,4 +1,5 @@
 import contextlib
+import re
 
 import ida_bytes
 import ida_funcs
@@ -9,6 +10,30 @@ import ida_typeinf
 import idaapi
 import idc
 from idahelper import file_format, memory, segments, tif
+
+# IDA 9.4 (SDK 940) introduced the `__swiftcall` calling convention + the
+# `__swiftself` argument attribute that we want to emit for Swift class
+# methods. On older IDA we have to fall back to our custom `__swiftClassCall`
+# CC (registered below) and the basic Swift::String typedef in DECLS, since
+# IDA didn't ship those types natively.
+_HAS_NATIVE_SWIFT_ABI = idaapi.IDA_SDK_VERSION >= 940
+
+# Keyword pair to emit when we type a Swift class method:
+#   IDA 9.4+ → `id __swiftcall foo(id __swiftself self)` (native ABI)
+#   older    → `id __swiftClassCall foo(id self)`        (our custom CC)
+SWIFTCALL_KW = "__swiftcall" if _HAS_NATIVE_SWIFT_ABI else "__swiftClassCall"
+SWIFTSELF_KW = "__swiftself " if _HAS_NATIVE_SWIFT_ABI else ""
+
+# Types that IDA 9.4 ships natively but older IDA doesn't — re-declared here
+# so the plugin still works on 9.0-9.3. Idempotent on 9.4 (redefinition with
+# identical layout is a no-op via `idc_parse_types`).
+_PRE_94_DECLS = """
+struct Swift::String
+{
+  u64 _countAndFlagsBits;
+  void *_object;
+};
+"""
 
 DECLS = """
 typedef long long s64;
@@ -145,8 +170,10 @@ typedef struct SwiftValueWitnessTable {
 """
 
 FUNCTIONS_SIGNATURES = {
-    # General
-    "___chkstk_darwin": "void __fastcall __chkstk_darwin(_QWORD)",
+    # General — `__chkstk_darwin` is x9-passed. IDA 9.4 ships the correct
+    # `__usercall ... @<X9>` sig natively, so the apply loop skips this entry
+    # there; older IDA needs us to set it.
+    "___chkstk_darwin": "void __usercall __chkstk_darwin(uint64_t size@<x9>)",
     # Base runtime
     # Swift runtime — allocation / deallocation
     "_swift_allocObject": "id *__fastcall swift_allocObject(void *metadata, size_t requiredSize, size_t requiredAlignmentMask)",
@@ -541,7 +568,9 @@ def _reg(name: str) -> int:
     raise RuntimeError(f"Cannot resolve register '{name}'")
 
 
-if file_format.is_arm64() and idaapi.IDA_SDK_VERSION >= 920:
+if file_format.is_arm64() and idaapi.IDA_SDK_VERSION >= 920 and not _HAS_NATIVE_SWIFT_ABI:
+    # IDA 9.4+ has a native `__swiftcall` CC — registering our `__swiftClassCall`
+    # would just add a slot we don't write to, so we only register on 9.0-9.3.
     X0 = _reg("X0")
     X1 = _reg("X1")
     X2 = _reg("X2")
@@ -721,7 +750,7 @@ def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
 
     func_details = tif.get_func_details(func)
     if func_details is None:
-        return bool(idc.SetType(func.start_ea, f"id __swiftcall {func_name}(id __swiftself self)"))
+        return bool(idc.SetType(func.start_ea, f"id {SWIFTCALL_KW} {func_name}(id {SWIFTSELF_KW}self)"))
 
     # No user/stored prototype yet — `get_func_details` can succeed off a
     # hex-rays *guessed* type that was never written to the IDB. Same
@@ -729,7 +758,7 @@ def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
     # (id self)` rather than no-op.
     current_type = idc.get_type(func.start_ea)
     if current_type is None:
-        return bool(idc.SetType(func.start_ea, f"id __swiftcall {func_name}(id __swiftself self)"))
+        return bool(idc.SetType(func.start_ea, f"id {SWIFTCALL_KW} {func_name}(id {SWIFTSELF_KW}self)"))
 
     already_typed = "__swiftself" in current_type or "__swiftClassCall" in current_type
 
@@ -753,8 +782,8 @@ def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
 
     first_arg = original_args[0] if original_args else ""
     has_self = "__swiftself" in first_arg or first_arg.startswith("id self") or first_arg == "id"
-    new_args = original_args if has_self else ["id __swiftself self", *original_args]
-    new_type = f"{return_type} __swiftcall {func_name}({', '.join(new_args)})"
+    new_args = original_args if has_self else [f"id {SWIFTSELF_KW}self", *original_args]
+    new_type = f"{return_type} {SWIFTCALL_KW} {func_name}({', '.join(new_args)})"
     if not idc.SetType(func.start_ea, new_type):
         return False
     print(f"[swift-types] {new_type}")
@@ -1096,6 +1125,22 @@ def _ensure_throws_x21_spoils(ea: int) -> bool:
     return bool(ida_typeinf.apply_tinfo(ea, new_ti, ida_typeinf.TINFO_DEFINITE))
 
 
+_SWIFTCALL_PAT = re.compile(r"\b__swiftcall\b")
+_SWIFTSELF_PAT = re.compile(r"\b__swiftself\s+")
+
+
+def _adapt_sig_to_ida_version(sig: str) -> str:
+    """Translate signature strings stored in canonical IDA-9.4 form
+    (`__swiftcall ... __swiftself ...`) back to our custom `__swiftClassCall`
+    CC for IDA <9.4 (which doesn't know `__swiftcall`/`__swiftself`).
+    No-op on 9.4+."""
+    if _HAS_NATIVE_SWIFT_ABI or "__swiftcall" not in sig:
+        return sig
+    out = _SWIFTSELF_PAT.sub("", sig)
+    out = _SWIFTCALL_PAT.sub("__swiftClassCall", out)
+    return out
+
+
 def fix_swift_types() -> None:
     # Auto-analysis populates `memory.names()` with the Swift mangled symbol
     # stubs we iterate later (FUNCTIONS_SIGNATURES + apply_swift_throws_x21).
@@ -1107,13 +1152,23 @@ def fix_swift_types() -> None:
 
     ida_auto.auto_wait()
 
+    if not _HAS_NATIVE_SWIFT_ABI:
+        # IDA <9.4 doesn't ship Swift::String; declare it BEFORE DECLS, which
+        # uses Swift::String inside `union Swift_ElementAny` and would
+        # otherwise fail to parse on 9.0-9.3.
+        tif.create_from_c_decl(_PRE_94_DECLS)
     tif.create_from_c_decl(DECLS)
 
     register_calling_convention()
 
     for name, sig in FUNCTIONS_SIGNATURES.items():
+        if name == "___chkstk_darwin" and _HAS_NATIVE_SWIFT_ABI:
+            # IDA 9.4 ships a more accurate `__chkstk_darwin` sig natively
+            # (`void (__usercall __spoils<> *)(unsigned __int64 size@<X9>)`);
+            # don't overwrite.
+            continue
         if (ea := memory.ea_from_name(name)) is not None:
-            idc.SetType(ea, sig)
+            idc.SetType(ea, _adapt_sig_to_ida_version(sig))
 
     apply_swift_typeref_strings()
     apply_swift_throws_x21()
