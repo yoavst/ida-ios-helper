@@ -151,18 +151,23 @@ def modify_text(cfunc: cfunc_t, index_to_sel: dict[int, str], class_indices_to_r
 
     ps: strvec_t = cfunc.get_pseudocode()
     lines_marked_for_removal: list[simpleline_t] = []
-    for i, line in enumerate(ps):
-        line: simpleline_t
-        prev_line = ps[i - 1].line if i != 0 else ""
+    # Iterate bottom-to-top so a line always merges into its still-surviving
+    # predecessor (line 0 has no predecessor, so we stop at 1).
+    for i in range(len(ps) - 1, 0, -1):
+        line: simpleline_t = ps[i]
+        prev_line = ps[i - 1].line
         should_merge = modify_selectors(index_to_sel, line, prev_line)
         should_merge |= modify_class(class_indices_to_remove, line, prev_line)
 
-        if should_merge and i != 0:
+        if should_merge:
             lines_marked_for_removal.append(line)
             merge(line.line, ps[i - 1])
 
-    # Remove lines that are marked for removal
-    for line_to_remove in reversed(lines_marked_for_removal):
+    # Lines must be erased in descending index order: `ps.erase` is positional
+    # (each `simpleline_t` is an iterator into the vector), so erasing a low index
+    # first would invalidate the iterators of the higher ones still to remove. The
+    # reverse loop above already collected them descending, so erase as-is.
+    for line_to_remove in lines_marked_for_removal:
         ps.erase(line_to_remove)
 
 
