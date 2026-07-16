@@ -21,6 +21,7 @@ from .plugins.kernelcache.func_renamers import (
 from .plugins.kernelcache.generic_calls_fix import generic_calls_fix_component
 from .plugins.kernelcache.kalloc_type import apply_kalloc_type_component, create_type_from_kalloc_component
 from .plugins.kernelcache.obj_this import this_arg_fixer_component
+from .plugins.objc.objc_fast_enum import fast_enum_component
 from .plugins.objc.objc_ref import objc_xrefs_component
 from .plugins.objc.objc_refcnt import component as objc_refcount_component
 from .plugins.objc.objc_sugar import objc_sugar_component
@@ -104,6 +105,7 @@ def objc_plugins() -> list[ComponentFactory]:
         oslog_component,
         objc_xrefs_component,
         objc_sugar_component,
+        fast_enum_component,
         swift_types_component,
         swift_types_hook_component,
         swift_prolog_hook_component,
