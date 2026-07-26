@@ -10,7 +10,9 @@ the stack:
     buf = sp - ((vwt->size + 15) & ~0xF)              # 16-byte-aligned alloca slot
 
 This hook walks the cfunc and renames:
-    <md_lvar>  -> "<X>_md"
+    <md_lvar>  -> "<X>_md", typed `Swift_ShiftedMetadataPtr`
+                  (a shifted-pointer typedef, so `*(md - 1)` itself decompiles
+                  as `ADJ(md)->vwt` instead of raw pointer arithmetic)
     <vwt_lvar> -> "<X>_vwt", typed `SwiftValueWitnessTable *`
                   (so subsequent `vwt[8]` reads decompile as `vwt->size`)
 
@@ -145,6 +147,13 @@ def _apply_prolog_rewrites(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa: C901
     vwt_tif = ida_typeinf.tinfo_t()
     has_vwt = ida_typeinf.parse_decl(vwt_tif, None, "SwiftValueWitnessTable *x;", ida_typeinf.PT_SIL)
 
+    # `Swift_ShiftedMetadataPtr` is a `Swift::Metadata *` that carries a
+    # "shifted pointer" attribute (see swift_types.py), so hex-rays renders
+    # the vwt dereference below (`*(md - 1)`) as `ADJ(md)->vwt` instead of
+    # raw pointer arithmetic. It's already a pointer typedef, so no `*` here.
+    md_tif = ida_typeinf.tinfo_t()
+    has_md = ida_typeinf.parse_decl(md_tif, None, "Swift_ShiftedMetadataPtr x;", ida_typeinf.PT_SIL)
+
     used_names: set[str] = {lv.name for lv in lvars}
 
     def _unique(base: str) -> str:
@@ -172,6 +181,10 @@ def _apply_prolog_rewrites(cfunc: ida_hexrays.cfunc_t) -> int:  # noqa: C901
         before = lv.name
         _rename(lv, f"{_sanitize_for_ident(_short_type(tname))}_md")
         if lv.name != before:
+            changes += 1
+        if has_md and not lv.has_user_type:
+            lv.set_lvar_type(md_tif)
+            lv.set_user_type()
             changes += 1
 
     for idx, tname in scanner.vwt_lvars.items():

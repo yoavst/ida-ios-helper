@@ -33,6 +33,11 @@ struct Swift::String
   u64 _countAndFlagsBits;
   void *_object;
 };
+
+struct Swift::Metadata
+{
+  unsigned __int64 metadata;
+};
 """
 
 DECLS = """
@@ -166,6 +171,24 @@ typedef struct SwiftValueWitnessTable {
     // 0x54
     uint32_t extraInhabitantCount;
 } SwiftValueWitnessTable;
+
+// The Swift ABI always stores a metadata's VWT pointer one word *before* the
+// metadata itself (`Swift::Metadata *md` -> `md[-1]` is the VWT). IDA's
+// "shifted pointer" feature lets us express that directly as a member access
+// instead of raw pointer arithmetic: a variable typed `Swift_ShiftedMetadataPtr`
+// renders `*(md - 1)` as `ADJ(md)->vwt` in the pseudocode.
+//
+// `Swift_FullMetadata` is never instantiated — it only exists to describe the
+// VWT-then-metadata layout the shift is computed against (mirrors the Swift
+// runtime's own `FullMetadata<T>` in Metadata.h).
+#pragma pack(push, 1)
+struct Swift_FullMetadata {
+    SwiftValueWitnessTable *vwt;
+    Swift::Metadata metadata;
+};
+#pragma pack(pop)
+
+typedef Swift::Metadata *__shifted(Swift_FullMetadata, 8) Swift_ShiftedMetadataPtr;
 
 """
 
