@@ -11,6 +11,8 @@ import idaapi
 import idc
 from idahelper import file_format, memory, segments, tif
 
+from . import func_type_ownership
+
 # IDA 9.4 (SDK 940) introduced the `__swiftcall` calling convention + the
 # `__swiftself` argument attribute that we want to emit for Swift class
 # methods. On older IDA we have to fall back to our custom `__swiftClassCall`
@@ -762,6 +764,20 @@ def _uses_x20_before_first_call(func: ida_funcs.func_t) -> bool:
     return False
 
 
+def _set_type_and_record(ea: int, decl: str) -> bool:
+    """`idc.SetType` plus a record of the resulting type.
+
+    Every prototype we write has to be recorded, or `may_apply` reads it back as
+    a user edit next time and locks us out of our own function. The class-call
+    pass matters most: it runs last, so it can rewrite a prototype the signature
+    loop or the throws pass just recorded.
+    """
+    if not idc.SetType(ea, decl):
+        return False
+    func_type_ownership.record(ea)
+    return True
+
+
 def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
     func_name = func.name
     if func_name is None:
@@ -773,7 +789,7 @@ def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
 
     func_details = tif.get_func_details(func)
     if func_details is None:
-        return bool(idc.SetType(func.start_ea, f"id {SWIFTCALL_KW} {func_name}(id {SWIFTSELF_KW}self)"))
+        return _set_type_and_record(func.start_ea, f"id {SWIFTCALL_KW} {func_name}(id {SWIFTSELF_KW}self)")
 
     # No user/stored prototype yet — `get_func_details` can succeed off a
     # hex-rays *guessed* type that was never written to the IDB. Same
@@ -781,7 +797,7 @@ def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
     # (id self)` rather than no-op.
     current_type = idc.get_type(func.start_ea)
     if current_type is None:
-        return bool(idc.SetType(func.start_ea, f"id {SWIFTCALL_KW} {func_name}(id {SWIFTSELF_KW}self)"))
+        return _set_type_and_record(func.start_ea, f"id {SWIFTCALL_KW} {func_name}(id {SWIFTSELF_KW}self)")
 
     already_typed = "__swiftself" in current_type or "__swiftClassCall" in current_type
 
@@ -807,7 +823,7 @@ def _apply_swift_class_call_signature(func: ida_funcs.func_t) -> bool:
     has_self = "__swiftself" in first_arg or first_arg.startswith("id self") or first_arg == "id"
     new_args = original_args if has_self else [f"id {SWIFTSELF_KW}self", *original_args]
     new_type = f"{return_type} {SWIFTCALL_KW} {func_name}({', '.join(new_args)})"
-    if not idc.SetType(func.start_ea, new_type):
+    if not _set_type_and_record(func.start_ea, new_type):
         return False
     print(f"[swift-types] {new_type}")
     return True
@@ -833,6 +849,17 @@ def optimize_swift_class_call(func_ea: int) -> bool:
         return False
     if not _uses_x20_before_first_call(func):
         return False
+
+    # This runs over every function, and it rewrites by splicing the stored
+    # declaration - so without this check it re-imposes `id __swiftself self` over a
+    # prototype the user wrote, on every run. The `__swiftself`/`__swiftClassCall`
+    # test inside `_apply_swift_class_call_signature` is not enough on its own: a
+    # user-defined prototype normally contains neither, so it read as fair game.
+    # Kept below the x20-prolog filter: that narrows thousands of functions down to
+    # the few dozen this pass touches, so the netnode read only happens for those.
+    if not func_type_ownership.may_apply(func_ea):
+        return False
+
     return _apply_swift_class_call_signature(func)
 
 
@@ -1114,6 +1141,11 @@ def _ensure_throws_x21_spoils(ea: int) -> bool:
     except RuntimeError:
         return False
 
+    # A prototype the user set is off-limits — this pass would otherwise
+    # force `__usercall` over it and discard their calling convention.
+    if not func_type_ownership.may_apply(ea):
+        return False
+
     ti = _resolve_func_tinfo(ea)
     if ti is None:
         return False
@@ -1145,7 +1177,10 @@ def _ensure_throws_x21_spoils(ea: int) -> bool:
     new_ti = ida_typeinf.tinfo_t()
     if not new_ti.create_func(fti):
         return False
-    return bool(ida_typeinf.apply_tinfo(ea, new_ti, ida_typeinf.TINFO_DEFINITE))
+    if not ida_typeinf.apply_tinfo(ea, new_ti, ida_typeinf.TINFO_DEFINITE):
+        return False
+    func_type_ownership.record(ea)
+    return True
 
 
 _SWIFTCALL_PAT = re.compile(r"\b__swiftcall\b")
@@ -1175,6 +1210,11 @@ def fix_swift_types() -> None:
 
     ida_auto.auto_wait()
 
+    # Decide up front whether these prototypes are already ours. Must happen
+    # before any pass writes, or the first type we save makes the database look
+    # already-ours to every later check in this run.
+    func_type_ownership.begin_run()
+
     if not _HAS_NATIVE_SWIFT_ABI:
         # IDA <9.4 doesn't ship Swift::String; declare it BEFORE DECLS, which
         # uses Swift::String inside `union Swift_ElementAny` and would
@@ -1191,11 +1231,19 @@ def fix_swift_types() -> None:
             # don't overwrite.
             continue
         if (ea := memory.ea_from_name(name)) is not None:
-            idc.SetType(ea, _adapt_sig_to_ida_version(sig))
+            # Ours and the user's are both stored as `TINFO_DEFINITE`, so telling
+            # them apart needs the type `func_type_ownership` recorded.
+            decl = _adapt_sig_to_ida_version(sig)
+            if func_type_ownership.may_apply(ea, decl):
+                _set_type_and_record(ea, decl)
 
     apply_swift_typeref_strings()
     apply_swift_throws_x21()
     apply_swift_class_call_to_all_functions()
+
+    # Every pass has written and recorded what it wanted, so from here on these
+    # prototypes are ours and anything that diverges is the user's.
+    func_type_ownership.mark_initial_run_complete()
 
 
 def apply_swift_class_call_to_all_functions() -> int:
