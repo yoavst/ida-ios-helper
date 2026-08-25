@@ -262,5 +262,3 @@ the package was almost certainly installed into a different Python environment. 
 and `sys.base_prefix` inside IDA, then repeat the package installation with that environment's Python executable. If
 IDA itself is bound to the wrong Python installation on Windows, close IDA and select the desired `python3.dll` with
 `idapyswitch.exe` from the IDA installation directory before reinstalling the package.
-
-
