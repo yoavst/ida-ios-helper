@@ -35,9 +35,119 @@ A plugin for IDA Pro 9.0+ to help with iOS code analysis.
 
 ## Installation
 
-1. Install this package using your IDA's python pip: `pip install ida-ios-helper`
-2. copy `ida-plugin.json` and `ida_plugin_stub.py` to your IDA's plugins folder: `~/.idapro/plugins/ida-ios-helper`.
-3. Restart IDA.
+### Requirements
+
+- IDA Pro 9.0 or later.
+- The Python interpreter embedded by IDA must be Python 3.10 or later.
+- The Python package and the plugin entry point must both be installed. Copying only the entry point is not enough.
+
+The most important part is to run `pip` through the same Python installation that IDA embeds. A bare `pip install`
+may target another Python installation on systems with multiple Python versions.
+
+To identify IDA's Python installation, run the following in IDA's Python console:
+
+```python
+import sys
+
+print(sys.version)
+print(sys.base_prefix)
+```
+
+`sys.base_prefix` is normally the Python installation directory. On Windows, for example, if it prints
+`C:\Users\user\AppData\Local\Programs\Python\Python311`, use the `python.exe` in that directory for the commands
+below. IDA's own `$IDA_INSTALLATION/python` directory contains IDAPython modules; it is not the Python interpreter
+to which the package should be installed.
+
+### Windows: local checkout
+
+The following PowerShell example installs this repository for IDA Pro 9.4 using Python 3.11. Adjust the first two
+paths for your machine and close IDA before running it:
+
+```powershell
+$IdaPython = "C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe"
+$Repo = "C:\path\to\ida-ios-helper"
+$PluginDir = "$env:APPDATA\Hex-Rays\IDA Pro\plugins\ida-ios-helper"
+
+# Install the package and its idahelper dependency into IDA's Python environment.
+# Editable mode makes changes in the checkout immediately available to IDA.
+& $IdaPython -m pip install -e $Repo
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to install the ida-ios-helper Python package"
+}
+
+# Install the lightweight IDA plugin entry point in the per-user plugin directory.
+New-Item -ItemType Directory -Force -Path $PluginDir | Out-Null
+Copy-Item -LiteralPath "$Repo\ida-plugin.json" -Destination $PluginDir -Force
+Copy-Item -LiteralPath "$Repo\ida_plugin_stub.py" -Destination $PluginDir -Force
+
+# Copy the logo referenced by ida-plugin.json.
+New-Item -ItemType Directory -Force -Path "$PluginDir\res" | Out-Null
+Copy-Item -LiteralPath "$Repo\res\logo.png" -Destination "$PluginDir\res\logo.png" -Force
+```
+
+For a non-editable installation of the local checkout, omit `-e`:
+
+```powershell
+& $IdaPython -m pip install $Repo
+```
+
+The resulting plugin directory should look like this:
+
+```text
+%APPDATA%\Hex-Rays\IDA Pro\plugins\ida-ios-helper\
+|-- ida-plugin.json
+|-- ida_plugin_stub.py
+`-- res\
+    `-- logo.png
+```
+
+Do not copy the plugin into `C:\Program Files\IDA Professional ...\plugins`; using IDA's per-user directory avoids
+administrator permissions and keeps the IDA installation untouched.
+
+### Install the published package
+
+If you do not need a local checkout, install the published package using IDA's Python executable:
+
+```text
+<IDA_PYTHON> -m pip install ida-ios-helper
+```
+
+Then copy `ida-plugin.json`, `ida_plugin_stub.py`, and optionally `res/logo.png` from this repository into an
+`ida-ios-helper` subdirectory under IDA's per-user `plugins` directory.
+
+The default IDA user directories are:
+
+| Platform | IDA user directory |
+| --- | --- |
+| Windows | `%APPDATA%\Hex-Rays\IDA Pro` |
+| Linux | `~/.idapro` |
+| macOS | `~/Library/Application Support/IDA Pro` |
+
+`IDAUSR` can override these defaults. In every case the plugin goes in `$IDAUSR/plugins/ida-ios-helper`. See the
+[Hex-Rays plugin installation layout](https://hcli.docs.hex-rays.com/reference/plugin-repository-architecture/)
+for details.
+
+### Verify the installation
+
+Before starting IDA, verify that both packages can be found without importing IDAPython-only modules:
+
+```powershell
+& $IdaPython -c "import importlib.util as u; print(u.find_spec('ioshelper').origin); print(u.find_spec('idahelper').origin)"
+```
+
+Restart IDA, open a database, and look under `Edit -> Plugins -> iOSHelper`. Available actions depend on the file
+type being analyzed.
+
+If IDA prints the following message in its output window:
+
+```text
+[Error] Could not load ida-ios-helper plugin. ida-ios-helper Python package doesn't seem to be installed.
+```
+
+the package was almost certainly installed into a different Python environment. Recheck `sys.version` and
+`sys.base_prefix` inside IDA, then repeat the package installation with that environment's Python executable. If IDA
+itself is bound to the wrong Python installation on Windows, close IDA and select the desired `python3.dll` with
+`idapyswitch.exe` from the IDA installation directory before reinstalling the package.
 
 ## Examples
 
