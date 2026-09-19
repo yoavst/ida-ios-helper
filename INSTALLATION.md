@@ -61,7 +61,15 @@ paths for your machine and close IDA before running it:
 ```powershell
 $IdaPython = "C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe"
 $Repo = "C:\path\to\ida-ios-helper"
-$PluginDir = "$env:APPDATA\Hex-Rays\IDA Pro\plugins\ida-ios-helper"
+
+# IDAUSR may contain multiple semicolon-separated directories. Install into the first one,
+# which is also what ida_diskio.get_user_idadir() returns.
+if ($env:IDAUSR) {
+    $IdaUserDir = ($env:IDAUSR -split ';', 2)[0]
+} else {
+    $IdaUserDir = "$env:APPDATA\Hex-Rays\IDA Pro"
+}
+$PluginDir = Join-Path $IdaUserDir "plugins\ida-ios-helper"
 
 # Install the package and its idahelper dependency into IDA's Python environment.
 # This is a regular, non-editable install.
@@ -128,7 +136,7 @@ done
 if [[ -n "${IDAUSR:-}" ]]; then
     IdaUserDir="${IDAUSR%%:*}"
 else
-    IdaUserDir="$HOME/Library/Application Support/IDA Pro"
+    IdaUserDir="$HOME/.idapro"
 fi
 PluginDir="$IdaUserDir/plugins/ida-ios-helper"
 
@@ -246,11 +254,14 @@ The default IDA user directories are:
 | --- | --- |
 | Windows | `%APPDATA%\Hex-Rays\IDA Pro` |
 | Linux | `~/.idapro` |
-| macOS | `~/Library/Application Support/IDA Pro` |
+| macOS | `~/.idapro` |
 
-`IDAUSR` can override these defaults. In every case the plugin goes in `$IDAUSR/plugins/ida-ios-helper`. See the
-[Hex-Rays plugin installation layout](https://hcli.docs.hex-rays.com/reference/plugin-repository-architecture/)
-for details.
+`ida_diskio.get_user_idadir()` is authoritative. `IDAUSR` can override these defaults and may contain multiple
+paths; IDA reports the effective first user directory. Install the plugin under
+`<IDA_USER_DIR>/plugins/ida-ios-helper`. See the
+[Hex-Rays plugin installation layout](https://hcli.docs.hex-rays.com/reference/plugin-repository-architecture/) for
+details. IDA 9.4's runtime configuration uses `~/.idapro` on both Linux and macOS; if publishing documentation or
+older guides disagree with the running application, use the value returned by `ida_diskio.get_user_idadir()`.
 
 ## Verify the installation
 

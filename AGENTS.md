@@ -93,11 +93,13 @@ On the current macOS workstation, the known paths are:
 ```text
 IDA application: /Applications/IDA Professional 9.4.app
 IDA Python:      /Users/ken/.local/share/uv/python/cpython-3.13.5-macos-aarch64-none/bin/python3.13
-IDA user dir:    /Users/ken/Library/Application Support/IDA Pro
-Plugin dir:      /Users/ken/Library/Application Support/IDA Pro/plugins/ida-ios-helper
+IDA user dir:    /Users/ken/.idapro
+Plugin dir:      /Users/ken/.idapro/plugins/ida-ios-helper
 ```
 
 Treat these as host-specific hints and re-check them before making external changes.
+IDA 9.4's runtime configuration uses `~/.idapro` on both Linux and macOS. Some plugin-publishing documentation may
+show a different macOS path; the value returned by `ida_diskio.get_user_idadir()` takes precedence.
 
 Verify a non-editable install without importing IDA-only modules:
 

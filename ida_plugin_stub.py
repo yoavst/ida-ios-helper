@@ -1,10 +1,11 @@
 """
-This is a stub file to be dropped in IDA plugins directory (usually ~/.idapro/plugins)
-You should install ida-ios-helper package globally in your python installation (When developing, use an editable install...)
-Make sure that this is the python version that IDA is using (otherwise you can switch with idapyswitch...)
+This is a stub file to be dropped in IDA's user plugins directory (usually ~/.idapro/plugins).
+Install the ida-ios-helper package into the exact Python interpreter embedded by IDA.
+Use a regular, non-editable install unless an editable development setup was explicitly requested.
+Make sure that this is the Python version that IDA is using (otherwise you can switch with idapyswitch...)
 Then copy:
-- ida_plugin_stub.py to ~/idapro/plugins/ida_ios_helper/ida_plugin_stub.py
-- ida-plugin.json to ~/idapro/plugins/ida_ios_helper/ida_plugin.json
+- ida_plugin_stub.py to ~/.idapro/plugins/ida-ios-helper/ida_plugin_stub.py
+- ida-plugin.json to ~/.idapro/plugins/ida-ios-helper/ida-plugin.json
 """
 
 # noinspection PyUnresolvedReferences
