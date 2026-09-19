@@ -31,6 +31,28 @@ Linux, the corresponding executable is normally under `<active-prefix>/bin`. `id
 the effective IDA user directory, including an `IDAUSR` override. IDA's own `$IDA_INSTALLATION/python` directory
 contains IDAPython modules; it is not the Python interpreter to which the package should be installed.
 
+### PEP 668 and uv-managed Python installations
+
+Some Python installations are marked as externally managed. This includes standalone interpreters installed by
+`uv`. In that case, both `pip` and `uv pip` refuse to modify the interpreter by default and report an
+`externally-managed-environment` error.
+
+Creating an unrelated virtual environment does not solve this for IDA: the package must be visible to the exact
+interpreter reported by IDA. After confirming that `IDA_PYTHON` is that interpreter, install the local checkout with
+`uv` and explicitly allow the modification:
+
+```bash
+uv pip install --python "$IDA_PYTHON" --break-system-packages "/path/to/ida-ios-helper"
+```
+
+If `uv` is unavailable, the equivalent `pip` command is:
+
+```bash
+"$IDA_PYTHON" -m pip install --break-system-packages "/path/to/ida-ios-helper"
+```
+
+Use this override only for the confirmed IDA interpreter. These commands perform a regular, non-editable install.
+
 ## Windows helper: local checkout
 
 The following PowerShell example installs this repository for IDA Pro 9.4 using Python 3.11. Adjust the first two
@@ -42,8 +64,8 @@ $Repo = "C:\path\to\ida-ios-helper"
 $PluginDir = "$env:APPDATA\Hex-Rays\IDA Pro\plugins\ida-ios-helper"
 
 # Install the package and its idahelper dependency into IDA's Python environment.
-# Editable mode makes changes in the checkout immediately available to IDA.
-& $IdaPython -m pip install -e $Repo
+# This is a regular, non-editable install.
+& $IdaPython -m pip install $Repo
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to install the ida-ios-helper Python package"
 }
@@ -58,11 +80,7 @@ New-Item -ItemType Directory -Force -Path "$PluginDir\res" | Out-Null
 Copy-Item -LiteralPath "$Repo\res\logo.png" -Destination "$PluginDir\res\logo.png" -Force
 ```
 
-For a non-editable installation of the local checkout, omit `-e`:
-
-```powershell
-& $IdaPython -m pip install $Repo
-```
+Re-run the same command after changing the checkout to replace the installed package with a newly built copy.
 
 The resulting plugin directory should look like this:
 
@@ -114,7 +132,7 @@ else
 fi
 PluginDir="$IdaUserDir/plugins/ida-ios-helper"
 
-"$IdaPython" -m pip install -e "$Repo"
+"$IdaPython" -m pip install "$Repo"
 
 mkdir -p "$PluginDir/res"
 cp -f "$Repo/ida-plugin.json" "$PluginDir/"
@@ -176,7 +194,7 @@ PipScope=()
 if [[ "${PIP_USER_INSTALL:-0}" == "1" ]]; then
     PipScope+=(--user)
 fi
-"$IdaPython" -m pip install "${PipScope[@]}" -e "$Repo"
+"$IdaPython" -m pip install "${PipScope[@]}" "$Repo"
 
 mkdir -p "$PluginDir/res"
 cp -f "$Repo/ida-plugin.json" "$PluginDir/"
@@ -208,7 +226,7 @@ If IDA uses a virtual environment, leave `PIP_USER_INSTALL` unset. When HCLI is 
 replace the helper's `"$IdaPython" -m pip install ...` line; keep the file-copy portion of the helper:
 
 ```bash
-hcli ida python exec -m pip install -e "/path/to/ida-ios-helper"
+hcli ida python exec -m pip install "/path/to/ida-ios-helper"
 ```
 
 ## Install the published package
