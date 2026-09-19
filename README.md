@@ -35,9 +35,7 @@ A plugin for IDA Pro 9.0+ to help with iOS code analysis.
 
 ## Installation
 
-1. Install this package using your IDA's python pip: `pip install ida-ios-helper`
-2. copy `ida-plugin.json` and `ida_plugin_stub.py` to your IDA's plugins folder: `~/.idapro/plugins/ida-ios-helper`.
-3. Restart IDA.
+See the [installation guide](INSTALLATION.md) for detailed Windows, macOS, and Debian/Ubuntu setup, verification, and troubleshooting instructions.
 
 ## Examples
 
