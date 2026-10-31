@@ -17,6 +17,10 @@ SELREF_NAME_PREFIX = "selRef_"
 # Selector names themselves live here. Other sections referencing them (`__objc_const`, `__objc_data`, ...)
 # are method lists of the implementations, not call sites.
 METHNAME_SECTION = "__objc_methname"
+SELECTOR_NAME_PREFIX = "sel_"
+
+# Printing thousands of lines to the console takes longer than finding them.
+MAX_XREFS_TO_PRINT = 50
 
 # An Obj-C method is named `-[Class selector]` / `+[Class selector]`
 OBJC_METHOD_NAME_PATTERN = re.compile(r"[-+]\[[^\s\]]+ (?P<selector>[^\s\]]+)\]")
@@ -43,8 +47,10 @@ def locate_selector_xrefs() -> None:
         print(f"No xrefs found for selector: {selector}")
         return
 
-    for ea, name in items:
-        print(f"0x{ea:08x} {name}")
+    print(f"found {len(items)} xrefs")
+    if len(items) <= MAX_XREFS_TO_PRINT:
+        for ea, name in items:
+            print(f"0x{ea:08x} {name}")
     xrefs_choose = EAChoose(f"Xrefs to selector: {selector}", items, modal=True)
     xrefs_choose.show()
 
@@ -80,17 +86,32 @@ def _selector_refs(selector: str) -> list[int]:
     if selrefs_segment is None:
         return []
 
-    # Fast path: IDA's Mach-O loader names the slots after the selector they point to.
-    selref_ea = memory.ea_from_name(f"{SELREF_NAME_PREFIX}{selector}")
-    if selref_ea is not None and selrefs_segment.start_ea <= selref_ea < selrefs_segment.end_ea:
-        return [selref_ea]
-
-    # Slow path: the slots are the data xrefs to the selector's name.
-    methname_segment = segments.get_segment_by_name(METHNAME_SECTION)
+    # A statically linked library has a slot per translation unit that sends the selector, not a single slot
+    # per selector, so all the slots pointing at the name are needed.
     return [
         slot_ea
-        for name in strings.find_strs(selector)
-        if methname_segment is None or methname_segment.start_ea <= name.ea < methname_segment.end_ea
-        for slot_ea in xrefs.get_xrefs_to(name.ea, is_data=True)
+        for name_ea in _selector_name_eas(selector)
+        for slot_ea in xrefs.get_xrefs_to(name_ea, is_data=True)
         if selrefs_segment.start_ea <= slot_ea < selrefs_segment.end_ea
+    ]
+
+
+def _selector_name_eas(selector: str) -> list[int]:
+    """Find the selector's name inside `__objc_methname`."""
+    # Fast path: IDA's Mach-O loader names the name `sel_<selector>` and every slot `selRef_<selector>`.
+    for name in (f"{SELECTOR_NAME_PREFIX}{selector}", f"{SELREF_NAME_PREFIX}{selector}"):
+        ea = memory.ea_from_name(name)
+        if ea is None:
+            continue
+        # A `selRef_` slot points at the name, while a `sel_` name is the name itself.
+        name_ea = memory.qword_from_ea(ea) if name.startswith(SELREF_NAME_PREFIX) else ea
+        if memory.str_from_ea(name_ea) == selector:
+            return [name_ea]
+
+    # Slow path: the names were renamed, so search for them.
+    methname_segment = segments.get_segment_by_name(METHNAME_SECTION)
+    return [
+        string.ea
+        for string in strings.find_strs(selector)
+        if methname_segment is None or methname_segment.start_ea <= string.ea < methname_segment.end_ea
     ]
