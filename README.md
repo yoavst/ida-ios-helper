@@ -20,7 +20,8 @@ A plugin for IDA Pro 9.0+ to help with iOS code analysis.
         - Optimize `_objc_storeStrong` and `_objc_setProperty_atomic_copy` to an assignment, `_objc_getProperty` to getting a field.
     - collapse `__os_log_impl` calls.
     - Hide selectors and static classes from Objective-c calls.
-    - When in Obj-C method, Ctrl+4 will show xrefs to the selector.
+    - When in Obj-C method, Ctrl+4 will show xrefs to the selector. Works both for arm64 selector stubs
+      (`_objc_msgSend$selector`) and for x86_64 selector references (`__objc_selrefs`).
 - Swift
     - Add swift types declarations to the IDA type system.
     - Detect stack swift string and add a syntactic sugar for them.
@@ -272,6 +273,9 @@ Use `Shift+X` on a virtual call to jump.
 ## Xrefs to selector
 
 Use `Ctrl+4` inside an Objective-C method to list xrefs to its selector.
+
+On arm64 the xrefs are the calls to the selector's stub in `__objc_stubs`. On x86_64 there are no such stubs, so the
+xrefs are the call sites loading the selector reference from `__objc_selrefs`.
 
 ![Jump to selector](res/jump_to_selector_xrefs.png)
 
